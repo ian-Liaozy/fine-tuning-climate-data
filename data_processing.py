@@ -2,8 +2,8 @@ import os
 from PyPDF2 import PdfReader
 import random
 
-input_dir = "/scratch/BDML25SP/"  # Update with actual dataset location
-output_dir = "/scratch/BDML25SP/processed_txt/"
+input_dir = "/scratch/zl3057/climate_text_dataset/"  
+output_dir = "/scratch/zl3057/processed_txt/"
 
 os.makedirs(output_dir, exist_ok=True)
 
