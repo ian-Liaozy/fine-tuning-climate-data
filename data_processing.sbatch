@@ -8,6 +8,9 @@
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=data_proc.out
 #SBATCH --gres=gpu:1
+#SBATCH --account=csci_ga_3033_077-2025sp
+#SBATCH -partition=n1s8-v100-1
+
 
 module purge
 cd /scratch/$USER
