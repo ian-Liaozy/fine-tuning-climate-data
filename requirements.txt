@@ -1,0 +1,19 @@
+# Basic dependencies
+numpy
+pandas
+torch
+transformers
+datasets
+scipy
+
+# Fine-tuning and memory optimization
+accelerate
+peft
+bitsandbytes
+trl  # For training transformer-based models
+
+# PDF Processing
+PyPDF2
+
+# Model evaluation
+evaluate
