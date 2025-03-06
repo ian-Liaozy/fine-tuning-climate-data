@@ -1,19 +1,25 @@
-# Basic dependencies
+# Core dependencies
 numpy
 pandas
-torch
-transformers
-datasets
 scipy
 
-# Fine-tuning and memory optimization
+# PyTorch and LLaMA fine-tuning
+torch==2.4.0  # Match with pytorch-cuda version
+transformers>=4.34.0
 accelerate
 peft
 bitsandbytes
-trl  # For training transformer-based models
+trl  # Required for HF fine-tuning
 
 # PDF Processing
 PyPDF2
 
 # Model evaluation
 evaluate
+
+# Fixing known dependency conflicts
+entrypoints
+jsonschema
+nbformat
+setproctitle
+markdown-it-py~=1.0
