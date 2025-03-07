@@ -1,15 +1,14 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 #SBATCH --time=4:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=data_proc
 #SBATCH --mail-user=zl3057@nyu.edu
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=data_proc.out
-#SBATCH --gres=gpu:1
 #SBATCH --account=csci_ga_3033_077-2025sp
-#SBATCH --partition=n1s8-v100-1
+#SBATCH --partition=n2c48m24
 
 
 cd /scratch/$USER
