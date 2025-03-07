@@ -12,7 +12,6 @@
 #SBATCH --partition=n1s8-v100-1
 
 
-module purge
 cd /scratch/$USER
 singularity exec --nv\
     --overlay /scratch/$USER/overlay-25GB-500K.ext3:rw \
