@@ -1,6 +1,6 @@
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from peft import get_peft_model, LoraConfig, TaskType
-from bitsandbytes import quantize
+# from bitsandbytes import quantize
 
 
 model_name = "/scratch/zl3057/Llama3.2-3B"  # Pretrained model path
