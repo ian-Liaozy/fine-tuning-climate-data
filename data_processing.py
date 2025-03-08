@@ -25,7 +25,7 @@ os.makedirs(test_dir, exist_ok=True)
 # test_list = file_list[int(len(file_list) * 0.9):]
 
 for file in train_files:
-    if file.endswith(".pdf") and not os.path.exists(train_dir + file.replace(".pdf", ".txt")):
+    if file.endswith(".pdf") and not os.path.exists(train_dir + file.replace(".pdf", ".txt")) and os.path.getsize(input_dir + file) < 20000000:
         with open(input_dir + file, "rb") as f:
             reader = PdfReader(f)
             text = ""
@@ -36,7 +36,7 @@ for file in train_files:
             print(f"Processed {file}")
 
 for file in test_files:
-    if file.endswith(".pdf") and not os.path.exists(test_dir + file.replace(".pdf", ".txt")):
+    if file.endswith(".pdf") and not os.path.exists(test_dir + file.replace(".pdf", ".txt")) and os.path.getsize(input_dir + file) < 20000000:
         with open(input_dir + file, "rb") as f:
             reader = PdfReader(f)
             text = ""
