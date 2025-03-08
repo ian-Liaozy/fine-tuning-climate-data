@@ -11,8 +11,6 @@ dataset = load_dataset("text", data_files={
 })
 
 
-
-
 model_name = "/scratch/zl3057/llama-3b-hf"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
