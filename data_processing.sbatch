@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task=4
 #SBATCH --time=12:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=data_proc
