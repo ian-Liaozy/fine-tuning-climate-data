@@ -3,7 +3,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 from bitsandbytes import quantize
 
 
-model_name = "/scratch/BDML25SP/LLaMA-3B"  # Pretrained model path
+model_name = "/scratch/zl3057/Llama3.2-3B"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 
