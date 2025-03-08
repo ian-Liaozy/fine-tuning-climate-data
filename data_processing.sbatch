@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=24
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=data_proc
 #SBATCH --mail-user=zl3057@nyu.edu
