@@ -1,11 +1,28 @@
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from peft import get_peft_model, LoraConfig, TaskType
 # from bitsandbytes import quantize
+from datasets import load_dataset
+
+dataset_path = "/scratch/zl3057/processed_txt"
+
+dataset = load_dataset("text", data_files={
+    "train": f"{dataset_path}/train/*.txt",
+    "test": f"{dataset_path}/test/*.txt"
+})
 
 
-model_name = "/scratch/zl3057/Llama3.2-3B"  # Pretrained model path
+
+
+model_name = "/scratch/zl3057/llama-3b-hf"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
+
+def tokenize_function(examples):
+    return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512)
+
+tokenized_datasets = dataset.map(tokenize_function, batched=True)
+train_dataset = tokenized_datasets["train"]
+test_dataset = tokenized_datasets["test"]
 
 lora_config = LoraConfig(
     r=8,  # Rank of low-rank matrices
