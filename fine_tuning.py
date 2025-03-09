@@ -28,8 +28,8 @@ tokenized_datasets = dataset.map(tokenize_function, batched=True)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 training_args = TrainingArguments(
-    per_device_train_batch_size=16,
-    gradient_accumulation_steps=4, 
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=8, 
     fp16=True,  # Mixed precision training
     bf16=False,
     optim="adamw_bnb_8bit",
