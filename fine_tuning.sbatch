@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
-#SBATCH --mem=32GB
+#SBATCH --mem=16GB
 #SBATCH --job-name=llama_finetune
 #SBATCH --mail-user=zl3057@nyu.edu
 #SBATCH --mail-type=BEGIN,END
