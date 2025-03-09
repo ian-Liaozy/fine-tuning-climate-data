@@ -28,12 +28,18 @@ tokenized_datasets = dataset.map(tokenize_function, batched=True)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 training_args = TrainingArguments(
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=8,  # Effectively increases batch size
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=4, 
     fp16=True,  # Mixed precision training
-    save_steps=500,
+    optim="adamw_bnb_8bit",
+    save_steps=1000
+    logging_steps=10,
     evaluation_strategy="steps",
+    eval_steps=500,
+    save_total_limit=2,
     output_dir="./checkpoints/",
+    warmup_steps=500,
+    weight_decay=0.01,
 )
 
 bnb_config = BitsAndBytesConfig(
@@ -56,6 +62,7 @@ model = get_peft_model(model, lora_config)
 
 print("Model prepared with LoRA")
 
+model.config.use_cache = False
 model.gradient_checkpointing_enable()
 training_args.gradient_checkpointing = True
 
