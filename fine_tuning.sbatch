@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --gpus=1
-#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
-#SBATCH --mem=16GB
+#SBATCH --mem=32GB
 #SBATCH --job-name=llama_finetune
 #SBATCH --mail-user=zl3057@nyu.edu
 #SBATCH --mail-type=BEGIN,END
