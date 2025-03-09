@@ -1,5 +1,5 @@
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
-from peft import get_peft_model, LoraConfig, TaskType
+from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_kbit_training
 # from bitsandbytes import quantize
 from datasets import load_dataset
 
@@ -15,7 +15,6 @@ model_name = "/scratch/zl3057/llama-3b-hf"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer.pad_token = tokenizer.eos_token
 
-model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 
 def tokenize_function(examples):
     return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512)
@@ -23,18 +22,6 @@ def tokenize_function(examples):
 tokenized_datasets = dataset.map(tokenize_function, batched=True)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
-
-lora_config = LoraConfig(
-    r=8,  # Rank of low-rank matrices
-    lora_alpha=16,
-    lora_dropout=0.1,
-    bias="none",
-    task_type=TaskType.CAUSAL_LM,
-)
-model = get_peft_model(model, lora_config)
-
-print("Model prepared with LoRA")
-
 training_args = TrainingArguments(
     per_device_train_batch_size=4,
     gradient_accumulation_steps=8,  # Effectively increases batch size
@@ -50,6 +37,19 @@ bnb_config = BitsAndBytesConfig(
 )
 
 model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+
+model = prepare_model_for_kbit_training(model)
+
+lora_config = LoraConfig(
+    r=8,  
+    lora_alpha=16,
+    lora_dropout=0.1,
+    bias="none",
+    task_type=TaskType.CAUSAL_LM,
+)
+model = get_peft_model(model, lora_config)
+
+print("Model prepared with LoRA")
 
 model.gradient_checkpointing_enable()
 training_args.gradient_checkpointing = True
