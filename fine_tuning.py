@@ -42,6 +42,7 @@ training_args = TrainingArguments(
     output_dir="./checkpoints/",
     warmup_steps=500,
     weight_decay=0.01,
+    resume_from_checkpoint=True,
 )
 
 bnb_config = BitsAndBytesConfig(

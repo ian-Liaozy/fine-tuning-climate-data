@@ -12,7 +12,20 @@
 
 
 cd /scratch/$USER
-singularity exec --nv\
+singularity exec --nv \
     --overlay /scratch/$USER/overlay-25GB-500K.ext3:rw \
-    /scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif\
-    /bin/bash -c "source /ext3/env.sh; conda activate llama-finetune; cd /scratch/$USER/fine-tuning-climate-data; python3 fine_tuning.py"
+    /scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
+    /bin/bash -c "
+        source /ext3/env.sh
+        conda activate llama-finetune
+        cd /scratch/$USER/fine-tuning-climate-data
+
+        CHECKPOINT_DIR='./checkpoints/'
+        if [ -d \"\$CHECKPOINT_DIR\" ] && [ \"\$(ls -A \$CHECKPOINT_DIR)\" ]; then
+            echo 'Resuming from latest checkpoint...'
+            python3 fine_tuning.py --resume_from_checkpoint \$CHECKPOINT_DIR
+        else
+            echo 'No checkpoint found. Starting from scratch...'
+            python3 fine_tuning.py
+        fi
+    "
