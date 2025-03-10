@@ -24,7 +24,7 @@ def tokenize_function(examples):
     return tokenized_inputs
 
 
-tokenized_datasets = dataset.map(tokenize_function, batched=True)
+tokenized_datasets = dataset.map(tokenize_function, batched=True, load_from_cache_file=False)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 training_args = TrainingArguments(
@@ -38,7 +38,7 @@ training_args = TrainingArguments(
     dataloader_num_workers=4,
     output_dir="./checkpoints/",
     warmup_steps=5,
-    max_steps=500,
+    max_steps=50,
     eval_strategy="steps",
     eval_steps=25,
     save_steps=50,
