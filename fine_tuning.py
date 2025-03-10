@@ -127,7 +127,7 @@ model.print_trainable_parameters()
 
 print("Model prepared with LoRA")
 
-model.gradient_checkpointing_enable()
+# model.gradient_checkpointing_enable()
 
 trainer = Trainer(
     model=model,
