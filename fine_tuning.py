@@ -39,12 +39,11 @@ training_args = TrainingArguments(
     output_dir="./checkpoints/",
     warmup_steps=5,
     max_steps=500,
-    evaluation_strategy="steps",
+    eval_strategy="steps",
     eval_steps=25,
     save_steps=50,
     logging_steps=5,
     learning_rate=1e-4,
-    weight_decay=0.01,
     report_to="none",
 )
 
@@ -53,7 +52,12 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype="float16",
 )
 
-model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name, 
+    quantization_config=bnb_config, 
+    device_map="auto",
+    attn_implementation="flash_attention_2",
+    use_cache=False)
 
 model = prepare_model_for_kbit_training(model)
 
@@ -64,11 +68,11 @@ lora_config = LoraConfig(
     bias="none",
     task_type=TaskType.CAUSAL_LM,
 )
+
 model = get_peft_model(model, lora_config)
 
 print("Model prepared with LoRA")
 
-model.config.use_cache = False
 model.gradient_checkpointing_enable()
 training_args.gradient_checkpointing = True
 
