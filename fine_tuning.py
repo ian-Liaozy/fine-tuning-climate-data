@@ -45,7 +45,6 @@ training_args = TrainingArguments(
     logging_steps=5,
     learning_rate=1e-4,
     weight_decay=0.01,
-    resume_from_checkpoint=True,
     report_to="none",
 )
 

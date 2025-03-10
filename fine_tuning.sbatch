@@ -19,13 +19,5 @@ singularity exec --nv \
         source /ext3/env.sh
         conda activate llama-finetune
         cd /scratch/$USER/fine-tuning-climate-data
-
-        CHECKPOINT_DIR='./checkpoints/'
-        if [ -d \"\$CHECKPOINT_DIR\" ] && [ \"\$(ls -A \$CHECKPOINT_DIR)\" ]; then
-            echo 'Resuming from latest checkpoint...'
-            python3 fine_tuning.py --resume_from_checkpoint \$CHECKPOINT_DIR
-        else
-            echo 'No checkpoint found. Starting from scratch...'
-            python3 fine_tuning.py
-        fi
+        python3 fine_tuning.py
     "
