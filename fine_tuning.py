@@ -134,6 +134,7 @@ trainer = Trainer(
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=test_dataset,
+    tokenizer=tokenizer,
 )
 
 trainer.train()
