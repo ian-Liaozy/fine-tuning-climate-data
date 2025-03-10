@@ -1,16 +1,56 @@
 import torch
-import math
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
+import math
 
-model.eval()
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-test_text = "Climate change is affecting global temperatures."
-inputs = tokenizer(test_text, return_tensors="pt").to("cuda")
+MODEL_PATH = "./checkpoints/final_model"  # Load the latest trained model
+DATASET_PATH = "/scratch/zl3057/processed_txt"
 
-with torch.no_grad():
-    outputs = model(**inputs, labels=inputs["input_ids"])
-    loss = outputs.loss
+dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
+test_dataset = dataset["test"]
 
-perplexity = math.exp(loss.item())
-print(f"Perplexity: {perplexity}")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to("cuda")
+
+def tokenize_function(examples):
+    tokenized_inputs = tokenizer(
+        examples["text"],
+        truncation=True,
+        padding="max_length",
+        max_length=512,
+        return_tensors="pt",
+    )
+    tokenized_inputs["labels"] = tokenized_inputs["input_ids"].clone()
+    return tokenized_inputs
+
+tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_proc=1)
+
+eval_args = TrainingArguments(
+    output_dir="./eval_results",
+    per_device_eval_batch_size=1,  
+    dataloader_num_workers=4,
+    do_eval=True,
+    report_to="none",
+)
+
+trainer = Trainer(
+    model=model,
+    args=eval_args,
+    eval_dataset=tokenized_test_dataset,
+)
+
+metrics = trainer.evaluate()
+
+perplexity = math.exp(metrics["eval_loss"])
+metrics["perplexity"] = perplexity
+
+print("Evaluation Results:")
+for key, value in metrics.items():
+    print(f"{key}: {value:.4f}")
+
+with open("eval_results.txt", "w") as f:
+    for key, value in metrics.items():
+        f.write(f"{key}: {value:.4f}\n")
