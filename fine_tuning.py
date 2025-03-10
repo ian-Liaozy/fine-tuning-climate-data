@@ -18,7 +18,7 @@ tokenizer.pad_token = tokenizer.eos_token
 
 def tokenize_function(examples):
     tokenized_inputs = tokenizer(
-        examples["text"], truncation=True, padding="max_length", max_length=512
+        examples["text"], truncation=True, padding="max_length", max_length=42
     )
     tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
     return tokenized_inputs
@@ -69,6 +69,7 @@ lora_config = LoraConfig(
 )
 
 model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()
 
 print("Model prepared with LoRA")
 
