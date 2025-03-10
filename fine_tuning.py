@@ -139,9 +139,9 @@ trainer = Trainer(
 trainer.train()
 
 
-trainer.save_model("./checkpoints/final_model")  
-tokenizer.save_pretrained("./checkpoints/final_model")
+# trainer.save_model("./checkpoints/final_model")  
+# tokenizer.save_pretrained("./checkpoints/final_model")
 
-model.save_pretrained("./checkpoints/lora_model")
+# model.save_pretrained("./checkpoints/lora_model")
 
 print("Training complete and model saved.")
