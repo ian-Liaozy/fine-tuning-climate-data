@@ -56,7 +56,6 @@ model = AutoModelForCausalLM.from_pretrained(
     model_name, 
     quantization_config=bnb_config, 
     device_map="auto",
-    attn_implementation="flash_attention_2",
     use_cache=False)
 
 model = prepare_model_for_kbit_training(model)
