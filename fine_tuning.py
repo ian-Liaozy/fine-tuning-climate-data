@@ -2,6 +2,7 @@ from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingA
 from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_kbit_training
 # from bitsandbytes import quantize
 from datasets import load_dataset
+import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
