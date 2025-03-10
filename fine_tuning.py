@@ -43,9 +43,10 @@ training_args = TrainingArguments(
     eval_steps=25,
     save_steps=50,
     logging_steps=5,
-    learning_rate=2e-5,
+    learning_rate=1e-4,
     weight_decay=0.01,
     resume_from_checkpoint=True,
+    report_to="none",
 )
 
 bnb_config = BitsAndBytesConfig(
@@ -81,6 +82,10 @@ trainer = Trainer(
 
 trainer.train()
 
-trainer.save_model("./lora_model")
-tokenizer.save_pretrained("./lora_model")
+
+trainer.save_model("./checkpoints/final_model")  
+tokenizer.save_pretrained("./checkpoints/final_model")
+
+model.save_pretrained("./checkpoints/lora_model")
+
 print("Training complete and model saved.")
