@@ -28,19 +28,22 @@ tokenized_datasets = dataset.map(tokenize_function, batched=True)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 training_args = TrainingArguments(
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=8, 
+    per_device_train_batch_size=1,
+    per_device_eval_batch_size=1,
+    gradient_accumulation_steps=4, 
     fp16=True,  # Mixed precision training
     bf16=False,
     optim="adamw_bnb_8bit",
-    save_steps=2000,
-    logging_steps=100,
-    evaluation_strategy="steps",
-    eval_steps=500,
     save_total_limit=2,
     dataloader_num_workers=4,
     output_dir="./checkpoints/",
-    warmup_steps=500,
+    warmup_steps=5,
+    max_steps=500,
+    evaluation_strategy="steps",
+    eval_steps=25,
+    save_steps=50,
+    logging_steps=5,
+    learning_rate=2e-5,
     weight_decay=0.01,
     resume_from_checkpoint=True,
 )
@@ -77,3 +80,7 @@ trainer = Trainer(
 )
 
 trainer.train()
+
+trainer.save_model("./lora_model")
+tokenizer.save_pretrained("./lora_model")
+print("Training complete and model saved.")
