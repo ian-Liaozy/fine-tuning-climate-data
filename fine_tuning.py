@@ -28,9 +28,10 @@ def tokenize_function(examples):
     return tokenized_inputs
 
 
-tokenized_datasets = dataset.map(tokenize_function, batched=True, load_from_cache_file=False, num_proc=1)
+tokenized_datasets = dataset.map(tokenize_function, batched=True, load_from_cache_file=True, num_proc=1)
 train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
+small_eval_dataset = test_dataset.select(range(500))
 # training_args = TrainingArguments(
 #     per_device_train_batch_size=1,
 #     per_device_eval_batch_size=1,
@@ -54,7 +55,7 @@ test_dataset = tokenized_datasets["test"]
 # Training arguments
 training_args = TrainingArguments(
     per_device_train_batch_size=1,
-    per_device_eval_batch_size=1,
+    per_device_eval_batch_size=4,
     gradient_accumulation_steps=4,  # Reduced from 8 to 4 to use less memory
     warmup_steps=5,
     max_steps=500,  # training steps reduced
@@ -133,7 +134,7 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    # eval_dataset=test_dataset,
+    eval_dataset=small_eval_dataset,
 )
 
 trainer.train()
