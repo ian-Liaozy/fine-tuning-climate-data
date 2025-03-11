@@ -3,7 +3,6 @@ from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_kbit_tr
 # from bitsandbytes import quantize
 from datasets import load_dataset
 import os
-import torch
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -33,8 +32,8 @@ train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 small_eval_dataset = test_dataset.select(range(500))
 training_args = TrainingArguments(
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=1,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=4,
     gradient_accumulation_steps=4, 
     fp16=True,  # Mixed precision training
     bf16=False,

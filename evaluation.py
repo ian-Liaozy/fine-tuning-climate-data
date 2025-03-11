@@ -1,4 +1,3 @@
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 from datasets import load_dataset
 import os
@@ -30,7 +29,7 @@ tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_p
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
-    per_device_eval_batch_size=1,  
+    per_device_eval_batch_size=4,  
     dataloader_num_workers=4,
     do_eval=True,
     report_to="none",

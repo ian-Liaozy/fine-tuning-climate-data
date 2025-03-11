@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=6:00:00
+#SBATCH --time=2:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=data_proc
 #SBATCH --mail-user=zl3057@nyu.edu
@@ -15,4 +15,4 @@ cd /scratch/$USER
 singularity exec --nv\
     --overlay /scratch/$USER/overlay-25GB-500K.ext3:rw \
     /scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif\
-    /bin/bash -c "source /ext3/env.sh; conda activate llama-finetune; cd /scratch/$USER/fine-tuning-climate-data; python3 data_processing.py"
+    /bin/bash -c "source /ext3/env.sh; conda activate llama-finetune; cd /scratch/$USER/fine-tuning-climate-data; python3 split_file.py; python3 data_processing.py"
