@@ -29,8 +29,8 @@ tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_p
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
-    per_device_eval_batch_size=4,  
-    dataloader_num_workers=4,
+    per_device_eval_batch_size=16,  
+    dataloader_num_workers=8,
     do_eval=True,
     report_to="none",
 )
