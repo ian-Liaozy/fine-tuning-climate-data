@@ -32,16 +32,11 @@ def get_model(model_name, parallel_mode="none", devices=None):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
-        device_map="auto",
         use_cache=False,
     )
 
     if parallel_mode == "data":
         rank = setup_distributed()
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            use_cache=False
-        ).cuda(rank)
         model = DDP(model, device_ids=[rank])
 
     elif parallel_mode == "tensor":
