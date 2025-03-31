@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.tensor.parallel import parallelize_module
-from torch.distributed.pipeline.sync import Pipe
+# from torch.distributed.pipeline.sync import Pipe
+from fairscale.nn.pipe import Pipe
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_dataset
 import argparse
