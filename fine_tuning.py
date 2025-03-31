@@ -9,6 +9,8 @@ from fairscale.nn.pipe import Pipe
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 import argparse
+from transformers import BitsAndBytesConfig
+
 
 
 def setup_distributed():
@@ -20,7 +22,19 @@ def setup_distributed():
     return rank
 
 def get_model(model_name, parallel_mode="none", devices=None):
-    model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+    )
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        quantization_config=bnb_config,
+        device_map="auto",
+        use_cache=False,
+    )
 
     if parallel_mode == "data":
         rank = setup_distributed()
@@ -74,6 +88,7 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
 
+
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
@@ -92,11 +107,11 @@ def main():
         logging_steps=25,
         learning_rate=5e-5,
         report_to="none",
-        fsdp="full_shard auto_wrap",
-        fsdp_transformer_layer_cls_to_wrap="LlamaDecoderLayer",
     )
 
+
     model = get_model(model_name, parallel_mode=args.parallel_mode, devices=[0, 1])
+
 
     model.gradient_checkpointing_enable()
     print("Model ready")
