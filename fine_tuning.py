@@ -12,11 +12,12 @@ import argparse
 
 
 def setup_distributed():
+    if dist.is_initialized():
+        return dist.get_rank()
     dist.init_process_group("nccl")
     rank = dist.get_rank()
     torch.cuda.set_device(rank)
     return rank
-
 
 def get_model(model_name, parallel_mode="none", devices=None):
     model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)

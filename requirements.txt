@@ -27,3 +27,5 @@ markdown-it-py~=1.0
 tiktoken
 sentencepiece
 protobuf
+
+importlib_metadata
