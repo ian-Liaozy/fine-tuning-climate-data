@@ -13,19 +13,6 @@ from transformers import BitsAndBytesConfig
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel
 
-tp_mesh = None
-
-def parallelize_fn(module: nn.Module):
-    if hasattr(module, "self_attn") and hasattr(module, "mlp"):
-        try:
-            ColwiseParallel.apply(module.self_attn.q_proj, tp_mesh)
-            ColwiseParallel.apply(module.self_attn.k_proj, tp_mesh)
-            ColwiseParallel.apply(module.self_attn.v_proj, tp_mesh)
-            RowwiseParallel.apply(module.self_attn.o_proj, tp_mesh)
-            ColwiseParallel.apply(module.mlp.gate_proj, tp_mesh)
-            RowwiseParallel.apply(module.mlp.down_proj, tp_mesh)
-        except Exception as e:
-            print(f"Skipping {module.__class__.__name__} due to error: {e}")
 
 
 def setup_distributed():
@@ -60,12 +47,21 @@ def get_model(model_name, parallel_mode="none", devices=None):
         # model = parallelize_module(model, parallel_mode="column", devices=devices)
         
         global tp_mesh
-        tp_mesh = DeviceMesh("cuda", list(range(torch.distributed.get_world_size())))
-        model = parallelize_module(
-            model,
-            tp_mesh,
-            parallelize_fn,
-        )
+        tp_mesh = DeviceMesh("cuda", list(range(dist.get_world_size())))
+
+        # Traverse and apply
+        for name, module in model.named_modules():
+            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+                try:
+                    ColwiseParallel.apply(module.self_attn.q_proj, tp_mesh)
+                    ColwiseParallel.apply(module.self_attn.k_proj, tp_mesh)
+                    ColwiseParallel.apply(module.self_attn.v_proj, tp_mesh)
+                    RowwiseParallel.apply(module.self_attn.o_proj, tp_mesh)
+                    ColwiseParallel.apply(module.mlp.gate_proj, tp_mesh)
+                    RowwiseParallel.apply(module.mlp.down_proj, tp_mesh)
+                    print(f"[TP] Applied tensor parallel to {name}")
+                except Exception as e:
+                    print(f"[TP] Skipped {name} due to: {e}")
 
 
     elif parallel_mode == "pipeline":
