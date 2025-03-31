@@ -56,7 +56,7 @@ def main():
         "test": f"{dataset_path}/test/*.txt"
     })
 
-    model_name = "/scratch/zl3057/llama-7b-hf"
+    model_name = "/scratch/zl3057/llama-3b-hf"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
