@@ -7,7 +7,6 @@ from torch.distributed.tensor.parallel import parallelize_module
 # from torch.distributed.pipeline.sync import Pipe
 from fairscale.nn.pipe import Pipe
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
-from transformers.integrations import FullyShardedDataParallelPlugin
 from datasets import load_dataset
 import argparse
 
@@ -74,12 +73,6 @@ def main():
     test_dataset = tokenized_datasets["test"]
     small_eval_dataset = test_dataset.select(range(500))
 
-    fsdp_plugin = FullyShardedDataParallelPlugin(
-        fsdp="full_shard auto_wrap",
-        backward_prefetch="backward_pre",
-        forward_prefetch=True,
-        sharding_strategy="FULL_SHARD",
-    )
 
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
@@ -100,7 +93,7 @@ def main():
         learning_rate=5e-5,
         report_to="none",
         fsdp="full_shard auto_wrap",
-        fsdp_config=fsdp_plugin,
+        fsdp_transformer_layer_cls_to_wrap="LlamaDecoderLayer",
     )
 
     model = get_model(model_name, parallel_mode=args.parallel_mode, devices=[0, 1])
