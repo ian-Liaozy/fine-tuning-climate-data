@@ -105,6 +105,7 @@ def main():
         logging_steps=25,
         learning_rate=5e-5,
         report_to="none",
+        remove_unused_columns=False,
     )
 
 
