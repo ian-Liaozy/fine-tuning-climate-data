@@ -111,7 +111,6 @@ def main():
     model = get_model(model_name, parallel_mode=args.parallel_mode, devices=[0, 1])
 
 
-    model.gradient_checkpointing_enable()
     print("Model ready")
 
     trainer = Trainer(
