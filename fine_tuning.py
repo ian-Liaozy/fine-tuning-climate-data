@@ -10,7 +10,21 @@ from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingA
 from datasets import load_dataset
 import argparse
 from transformers import BitsAndBytesConfig
+from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel
 
+
+def parallelize_fn(module: nn.Module):
+    if isinstance(module, LlamaDecoderLayer):
+        # Attention: parallelize projections
+        ColwiseParallel.apply(module.self_attn.q_proj, tp_mesh)
+        ColwiseParallel.apply(module.self_attn.k_proj, tp_mesh)
+        ColwiseParallel.apply(module.self_attn.v_proj, tp_mesh)
+        RowwiseParallel.apply(module.self_attn.out_proj, tp_mesh)
+
+        # MLP: feed-forward layers
+        ColwiseParallel.apply(module.mlp.fc1, tp_mesh)
+        RowwiseParallel.apply(module.mlp.fc2, tp_mesh)
 
 
 def setup_distributed():
@@ -42,7 +56,14 @@ def get_model(model_name, parallel_mode="none", devices=None):
     elif parallel_mode == "tensor":
         rank = setup_distributed()
         model = model.cuda(rank)
-        model = parallelize_module(model, parallel_mode="column", devices=devices)
+        # model = parallelize_module(model, parallel_mode="column", devices=devices)
+        model = parallelize_module(
+            model,
+            tp_mesh,
+            parallelize_fn,
+        )
+        tp_mesh = DeviceMesh("cuda", list(range(torch.distributed.get_world_size())))
+
 
     elif parallel_mode == "pipeline":
         rank = setup_distributed()
