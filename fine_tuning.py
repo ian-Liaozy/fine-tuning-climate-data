@@ -6,7 +6,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.tensor.parallel import parallelize_module
 # from torch.distributed.pipeline.sync import Pipe
 from fairscale.nn.pipe import Pipe
-from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig, safe_save_model
+from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 import argparse
 from transformers import BitsAndBytesConfig
@@ -106,6 +106,7 @@ def main():
         learning_rate=5e-5,
         report_to="none",
         remove_unused_columns=False,
+        save_safetensors=False,
     )
 
 
@@ -122,8 +123,7 @@ def main():
     )
 
     trainer.train()
-    # trainer.save_model("./checkpoints/final_dist_model")
-    safe_save_model(trainer.model, "./checkpoints/final_dist_model")
+    trainer.save_model("./checkpoints/final_dist_model")
 
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
     print("Training complete and model saved.")
