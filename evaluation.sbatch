@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=2:00:00
+#SBATCH --time=1:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=llama_finetune
 #SBATCH --mail-user=zl3057@nyu.edu
@@ -19,5 +19,5 @@ singularity exec --nv \
         source /ext3/env.sh
         conda activate llama-finetune
         cd /scratch/$USER/fine-tuning-climate-data
-        python3 fine_tuning.py
+        python3 evaluation.py
     "
