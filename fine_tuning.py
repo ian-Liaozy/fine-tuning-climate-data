@@ -31,21 +31,24 @@ def get_model(model_name, parallel_mode="none", devices=None):
         bnb_4bit_compute_dtype=torch.float16,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        use_cache=False,
-    )
 
     if parallel_mode == "data":
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            use_cache=False,
+        )
         rank = setup_distributed()
         model = DDP(model, device_ids=[rank])
 
     elif parallel_mode == "tensor":
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            use_cache=False,
+        )
         rank = setup_distributed()
         model = model.cuda(rank)
         # model = parallelize_module(model, parallel_mode="column", devices=devices)
-        model.quantization_config = None
         
         global tp_mesh
         tp_mesh = DeviceMesh("cuda", list(range(dist.get_world_size())))
@@ -67,6 +70,11 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
 
     elif parallel_mode == "pipeline":
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            use_cache=False,
+        )
         rank = setup_distributed()
         model = model.cuda(rank)
         model = Pipe(model, balance=[3, 3], devices=devices)
@@ -121,7 +129,7 @@ def main():
         output_dir="./checkpoints/",
         warmup_steps=5,
         max_steps=500,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=25,
         save_steps=25,
         logging_steps=25,
