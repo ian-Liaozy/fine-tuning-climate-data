@@ -57,12 +57,12 @@ def get_model(model_name, parallel_mode="none", devices=None):
         for name, module in model.named_modules():
             if hasattr(module, "self_attn") and hasattr(module, "mlp"):
                 try:
-                    ColwiseParallel.apply(module.self_attn.q_proj, tp_mesh)
-                    ColwiseParallel.apply(module.self_attn.k_proj, tp_mesh)
-                    ColwiseParallel.apply(module.self_attn.v_proj, tp_mesh)
-                    RowwiseParallel.apply(module.self_attn.o_proj, tp_mesh)
-                    ColwiseParallel.apply(module.mlp.gate_proj, tp_mesh)
-                    RowwiseParallel.apply(module.mlp.down_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
+                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
+                    ColwiseParallel(module.mlp.fc1, tp_mesh)  # First linear layer in MLP
+                    RowwiseParallel(module.mlp.fc2, tp_mesh)  # Second linear layer in MLP
                     print(f"[TP] Applied tensor parallel to {name}")
                 except Exception as e:
                     print(f"[TP] Skipped {name} due to: {e}")
