@@ -45,6 +45,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
         rank = setup_distributed()
         model = model.cuda(rank)
         # model = parallelize_module(model, parallel_mode="column", devices=devices)
+        model.quantization_config = None
         
         global tp_mesh
         tp_mesh = DeviceMesh("cuda", list(range(dist.get_world_size())))
@@ -62,6 +63,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
                     print(f"[TP] Applied tensor parallel to {name}")
                 except Exception as e:
                     print(f"[TP] Skipped {name} due to: {e}")
+
 
 
     elif parallel_mode == "pipeline":
