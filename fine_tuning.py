@@ -137,6 +137,7 @@ def main():
         report_to="none",
         remove_unused_columns=False,
         save_safetensors=False,
+        ddp_find_unused_parameters=False,
     )
 
 
