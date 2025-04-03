@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.tensor.parallel import parallelize_module
-# from torch.distributed.pipeline.sync import Pipe
-from fairscale.nn.pipe import Pipe
+from torch.distributed.pipeline.sync import Pipe
+# from fairscale.nn.pipe import Pipe
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 import argparse
@@ -47,25 +47,28 @@ def get_model(model_name, parallel_mode="none", devices=None):
             use_cache=False,
         )
         rank = setup_distributed()
-        model = model.cuda(rank)
+        
         # model = parallelize_module(model, parallel_mode="column", devices=devices)
         
         global tp_mesh
         tp_mesh = DeviceMesh("cuda", list(range(dist.get_world_size())))
 
         # Traverse and apply
-        for name, module in model.named_modules():
-            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
-                try:
-                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
-                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
-                    ColwiseParallel(module.mlp.fc1, tp_mesh)  # First linear layer in MLP
-                    RowwiseParallel(module.mlp.fc2, tp_mesh)  # Second linear layer in MLP
-                    print(f"[TP] Applied tensor parallel to {name}")
-                except Exception as e:
-                    print(f"[TP] Skipped {name} due to: {e}")
+        with torch.no_grad():
+            for name, module in model.named_modules():
+                if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+                    try:
+                        ColwiseParallel(module.self_attn.q_proj, tp_mesh)
+                        ColwiseParallel(module.self_attn.k_proj, tp_mesh)
+                        ColwiseParallel(module.self_attn.v_proj, tp_mesh)
+                        RowwiseParallel(module.self_attn.out_proj, tp_mesh)
+                        ColwiseParallel(module.mlp.fc1, tp_mesh)  # First linear layer in MLP
+                        RowwiseParallel(module.mlp.fc2, tp_mesh)  # Second linear layer in MLP
+                        print(f"[TP] Applied tensor parallel to {name}")
+                    except Exception as e:
+                        print(f"[TP] Skipped {name} due to: {e}")
+        
+        model = model.cuda(rank)
 
 
 
@@ -118,9 +121,9 @@ def main():
 
 
     training_args = TrainingArguments(
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=8,
         fp16=False,
         bf16=False,
         optim="adamw_bnb_8bit",
@@ -138,6 +141,8 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
+        fsdp=None,
+        deepspeed=None,
     )
 
 
