@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.tensor.parallel import parallelize_module
-from torch.distributed.pipeline.sync import Pipe
+from torch.distributed.pipelining import pipeline, SplitPoint, ScheduleGPipe
 # from fairscale.nn.pipe import Pipe
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
@@ -73,14 +73,42 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
 
     elif parallel_mode == "pipeline":
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=bnb_config,
-            use_cache=False,
-        )
         rank = setup_distributed()
-        model = model.cuda(rank)
-        model = Pipe(model, balance=[3, 3], devices=devices)
+
+        # Load the model on meta to avoid OOM
+        with torch.device("meta"):
+            full_model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map={"": "meta"},
+            )
+
+        # Create dummy input for tracing (1 microbatch)
+        dummy_input = torch.ones((1, 42), dtype=torch.long)
+
+        # Split the model
+        pipe = pipeline(
+            module=full_model,
+            mb_args=(dummy_input,),
+            split_spec={"model.layers.12": SplitPoint.BEGINNING},  # Change based on your architecture
+        )
+
+        # Extract partitioned module for current rank
+        stage_module = pipe.get_stage_module(rank)
+
+        # Move stage to GPU
+        device = torch.device(f"cuda:{rank}")
+        stage_module.to(device)
+
+        # Build the runtime stage
+        group = dist.group.WORLD
+        stage = pipe.build_stage(rank, device, group)
+
+        # Store the pipe info for later
+        global pipe_info
+        pipe_info = pipe.info()
+
+        return stage  # Return the runtime stage
 
     else:
         model = model.cuda()
@@ -148,6 +176,15 @@ def main():
 
     model = get_model(model_name, parallel_mode=args.parallel_mode, devices=[0, 1])
 
+    if args.parallel_mode == "pipeline":
+        if dist.get_rank() == 0:
+            inputs = torch.randint(0, tokenizer.vocab_size, (4, 42)).to(torch.device("cuda:0"))
+            schedule = ScheduleGPipe(model, n_microbatches=2)
+            schedule.step(inputs)
+        else:
+            schedule = ScheduleGPipe(model, n_microbatches=2)
+            outputs = schedule.step()
+        return
 
     print("Model ready")
 
