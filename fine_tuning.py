@@ -31,7 +31,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
     )
 
     if parallel_mode == "data":
-        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config, use_cache=False)
         model = model.cuda(rank)
         model = DDP(model, device_ids=[rank])
         return model, tokenizer
