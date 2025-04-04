@@ -48,16 +48,30 @@ def get_model(model_name, parallel_mode="none", devices=None):
     model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
 
     if parallel_mode == "pipeline":
-        model = split_llama(model, rank, 2)
-        input_example = (torch.ones(1, 42).long().to(rank),)  # batch, seq_len
+        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
+        layers = model.model.layers
+        half = len(layers) // 2
+
+        # === Manual partition ===
+        if rank == 0:
+            model.model.layers = layers[:half]
+            model.model.norm = None
+            model.lm_head = None
+        else:
+            model.model.embed_tokens = None
+            model.model.layers = layers[half:]
+
+        model = model.to(rank)  # ensure all parts on CUDA
+
+        # === PipelineStage with runtime shape inference ===
         stage = PipelineStage(
             submodule=model,
             stage_index=rank,
             num_stages=2,
             device=torch.device(f"cuda:{rank}"),
-            input_args=input_example
         )
-        return stage, AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        return stage, tokenizer
 
     elif parallel_mode == "tensor":
         model = model.cuda(rank)
