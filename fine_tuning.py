@@ -135,8 +135,6 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
-        fsdp=None,
-        deepspeed=None,
     )
 
     if args.parallel_mode == "pipeline":
