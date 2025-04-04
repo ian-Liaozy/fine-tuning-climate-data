@@ -6,9 +6,28 @@ import argparse
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, pipeline, SplitPoint
+from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
+from pippy import Pipe, pipe_split
+
+class LlamaSplit(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.embed_tokens = model.model.embed_tokens
+        self.layers = model.model.layers
+        self.norm = model.model.norm
+        self.lm_head = model.lm_head
+
+    def forward(self, input_ids):
+        x = self.embed_tokens(input_ids)
+        pipe_split()  # Start pipeline stage 1
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+        pipe_split()  # Start pipeline stage 2
+        x = self.norm(x)
+        return self.lm_head(x)
+    
 
 def setup_distributed():
     if dist.is_initialized():
@@ -57,28 +76,13 @@ def get_model(model_name, parallel_mode="none", devices=None):
         return model, tokenizer
 
     elif parallel_mode == "pipeline":
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-
-        dummy_input = (torch.randint(0, model.config.vocab_size, (4, 42)),)
-
-        # Automatically split the model at a logical mid-layer
-        split_spec = {
-            "model.layers.12": SplitPoint.BEGINNING  # Adjust depending on layer count
-        }
-
-        pipe = pipeline(
-            module=model,
-            mb_args=dummy_input,
-            split_spec=split_spec
-        )
-
-        stage_mod = pipe.get_stage_module(rank)
-        stage = PipelineStage(
-            submodule=stage_mod,
-            stage_index=rank,
-            num_stages=2,
-            device=torch.device(f"cuda:{rank}")
-        )
+        base_model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = LlamaSplit(base_model).to(torch.device(f"cuda:{rank}"))
+        
+        input_example = (torch.ones((1, 42), dtype=torch.long).to(torch.device(f"cuda:{rank}")),)
+        pipe = Pipe.from_tracing(model, input_example, num_stages=2)
+        stage_module = pipe.get_stage_module(rank).to(torch.device(f"cuda:{rank}"))
+        stage = pipe.build_stage(rank, device=torch.device(f"cuda:{rank}"))
         return stage, tokenizer
 
     else:
