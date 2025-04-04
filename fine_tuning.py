@@ -175,7 +175,7 @@ def main():
         position_ids = torch.arange(42, device=device).unsqueeze(0).expand(4, -1)
 
         if rank == 0:
-            schedule.step((dummy_input,), {'position_ids': position_ids})
+            schedule.step(dummy_input, {'position_ids': position_ids})
         else:
             _ = schedule.step()
     else:
