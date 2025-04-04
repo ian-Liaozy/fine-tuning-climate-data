@@ -68,10 +68,16 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.layers = nn.ModuleList(layers)
 
             def forward(self, input_ids):
+                position_ids = torch.arange(
+                    input_ids.shape[1], dtype=torch.long, device=input_ids.device
+                ).unsqueeze(0).expand(input_ids.shape[0], -1)
+
                 x = self.embed_tokens(input_ids)
+
                 for layer in self.layers:
-                    x = layer(x)
-                return x  # Send hidden_states to next stage
+                    x = layer(x, position_ids=position_ids)[0]  # discard attn_weights
+
+                return x, position_ids
 
         class Stage1(nn.Module):
             def __init__(self, layers, norm, lm_head):
