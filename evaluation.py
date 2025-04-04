@@ -19,7 +19,6 @@ MAX_LENGTH = 42
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    device_map="auto",
     load_in_4bit=True
 )
 
