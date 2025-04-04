@@ -22,6 +22,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
     world_size = dist.get_world_size()
 
+    # Use your own tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -69,16 +70,12 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
             def forward(self, input_ids, position_ids=None):
                 batch_size, seq_length = input_ids.shape
-
                 if position_ids is None:
                     position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
                     position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
-
                 hidden_states = self.embed_tokens(input_ids)
-
                 for layer in self.layers:
-                    hidden_states = layer(hidden_states, position_ids=position_ids)[0]  # discard attn_weights
-
+                    hidden_states = layer(hidden_states, position_ids=position_ids)[0]
                 return hidden_states
 
         class Stage1(nn.Module):
@@ -91,7 +88,6 @@ def get_model(model_name, parallel_mode="none", devices=None):
             def forward(self, hidden_states, position_ids=None):
                 for layer in self.layers:
                     hidden_states = layer(hidden_states, position_ids=position_ids)[0]
-
                 hidden_states = self.norm(hidden_states)
                 return self.lm_head(hidden_states)
 
@@ -160,7 +156,7 @@ def main():
         output_dir="./checkpoints/",
         warmup_steps=5,
         max_steps=500,
-        eval_strategy="steps",  # Updated for v4.46+
+        eval_strategy="steps",
         eval_steps=25,
         save_steps=25,
         logging_steps=25,
