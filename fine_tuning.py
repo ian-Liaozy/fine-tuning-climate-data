@@ -19,11 +19,11 @@ def setup_distributed():
     return rank
 
 def patch_rotary_emb(model):
-    # For each transformer layer, patch the self-attention module
+    # Iterate over each transformer layer in the model.
     for layer in model.model.layers:
-        if not hasattr(layer.self_attn, 'rotary_emb'):
-            # If rotary_emb is not defined, assign a dummy rotary function.
-            print("Layer.self_attn has no rotary_emb attribute. Patching with dummy_rotary.")
+        # Check if the self-attention module has a rotary_emb attribute that is not None.
+        if getattr(layer.self_attn, 'rotary_emb', None) is None:
+            print("Patching rotary_emb for a layer with a dummy function.")
             def dummy_rotary(position_ids):
                 head_dim = model.config.hidden_size // model.config.num_attention_heads
                 batch_size, seq_len = position_ids.shape
@@ -32,7 +32,7 @@ def patch_rotary_emb(model):
                 return (cos, sin)
             layer.self_attn.rotary_emb = dummy_rotary
         else:
-            # Otherwise, wrap the existing rotary_emb to handle None outputs.
+            # If rotary_emb exists (and is callable), wrap it to handle None outputs.
             orig_rotary = layer.self_attn.rotary_emb
             def patched_rotary(position_ids, orig_rotary=orig_rotary):
                 result = orig_rotary(position_ids)
@@ -44,6 +44,7 @@ def patch_rotary_emb(model):
                     return (cos, sin)
                 return result
             layer.self_attn.rotary_emb = patched_rotary
+
 
 def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
