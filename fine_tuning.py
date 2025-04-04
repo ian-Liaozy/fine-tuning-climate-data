@@ -67,21 +67,18 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.embed_tokens = embed_tokens
                 self.layers = nn.ModuleList(layers)
 
-            def forward(self, input_ids):
+            def forward(self, input_ids, position_ids=None):
                 batch_size, seq_length = input_ids.shape
-                position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
-                position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
 
-                hidden_states = self.model.embed_tokens(input_ids)
+                if position_ids is None:
+                    position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+                    position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
 
-                for layer in self.model.layers.values():  # or .children() if not ModuleDict
+                hidden_states = self.embed_tokens(input_ids)
+
+                for layer in self.layers:
                     hidden_states = layer(hidden_states, position_ids=position_ids)[0]  # discard attn_weights
 
-                if self.model.norm is not None:
-                    hidden_states = self.model.norm(hidden_states)
-                if self.lm_head is not None:
-                    logits = self.lm_head(hidden_states)
-                    return logits
                 return hidden_states
 
         class Stage1(nn.Module):
@@ -91,13 +88,12 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.norm = norm
                 self.lm_head = lm_head
 
-            def forward(self, hidden_states, position_ids):
+            def forward(self, hidden_states, position_ids=None):
                 for layer in self.layers:
                     hidden_states = layer(hidden_states, position_ids=position_ids)[0]
 
                 hidden_states = self.norm(hidden_states)
-                logits = self.lm_head(hidden_states)
-                return logits
+                return self.lm_head(hidden_states)
 
         if rank == 0:
             stage_module = Stage0(model.model.embed_tokens, layers[:half])
