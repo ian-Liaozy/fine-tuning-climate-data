@@ -68,16 +68,21 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.layers = nn.ModuleList(layers)
 
             def forward(self, input_ids):
-                position_ids = torch.arange(
-                    input_ids.shape[1], dtype=torch.long, device=input_ids.device
-                ).unsqueeze(0).expand(input_ids.shape[0], -1)
+                batch_size, seq_length = input_ids.shape
+                position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+                position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
 
-                x = self.embed_tokens(input_ids)
+                hidden_states = self.model.embed_tokens(input_ids)
 
-                for layer in self.layers:
-                    x = layer(x, position_ids=position_ids)[0]  # discard attn_weights
+                for layer in self.model.layers.values():  # or .children() if not ModuleDict
+                    hidden_states = layer(hidden_states, position_ids=position_ids)[0]  # discard attn_weights
 
-                return x, position_ids
+                if self.model.norm is not None:
+                    hidden_states = self.model.norm(hidden_states)
+                if self.lm_head is not None:
+                    logits = self.lm_head(hidden_states)
+                    return logits
+                return hidden_states
 
         class Stage1(nn.Module):
             def __init__(self, layers, norm, lm_head):
@@ -175,9 +180,10 @@ def main():
         device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
+        position_ids = torch.arange(42, device=device).unsqueeze(0).expand(4, -1)
 
         if rank == 0:
-            schedule.step(dummy_input)
+            schedule.step((dummy_input,), {'position_ids': position_ids})
         else:
             _ = schedule.step()
     else:
@@ -191,6 +197,9 @@ def main():
         trainer.save_model("./checkpoints/final_dist_model")
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 if __name__ == "__main__":
     main()
