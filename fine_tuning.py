@@ -69,6 +69,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.layers = nn.ModuleList(layers)
 
             def forward(self, input_ids, position_ids=None):
+                if isinstance(input_ids, tuple):
+                    input_ids = input_ids[0]
                 batch_size, seq_length = input_ids.shape
                 if position_ids is None:
                     position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
