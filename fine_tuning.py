@@ -72,7 +72,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
             submodule=model,
             stage_index=rank,
             num_stages=2,
-            device=torch.device(f"cuda:{rank}")
+            device=torch.device(f"cuda:{rank}"),
+            # Remove input_args to use runtime shape inference
         )
         return stage, tokenizer
 
@@ -126,7 +127,7 @@ def main():
         output_dir="./checkpoints/",
         warmup_steps=5,
         max_steps=500,
-        evaluation_strategy="steps",
+        eval_strategy="steps",  # Updated for v4.46+
         eval_steps=25,
         save_steps=25,
         logging_steps=25,
@@ -144,7 +145,7 @@ def main():
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
         if rank == 0:
-            schedule.step(dummy_input)
+            schedule.step((dummy_input,))
         else:
             schedule.step()
     else:
