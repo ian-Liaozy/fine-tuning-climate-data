@@ -115,8 +115,8 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     training_args = TrainingArguments(
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
