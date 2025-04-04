@@ -11,10 +11,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingA
 from datasets import load_dataset
 
 def setup_distributed():
-    if not dist.is_initialized():
-        dist.init_process_group("nccl")
-        torch.cuda.set_device(dist.get_rank())
-    return dist.get_rank()
+    if dist.is_initialized():
+        return dist.get_rank()
+    dist.init_process_group("nccl")
+    rank = dist.get_rank()
+    torch.cuda.set_device(rank)
+    return rank
 
 def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
@@ -32,7 +34,6 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
     if parallel_mode == "data":
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config, use_cache=False)
-        model = model.cuda(rank)
         model = DDP(model, device_ids=[rank])
         return model, tokenizer
 
