@@ -61,20 +61,43 @@ def get_model(model_name, parallel_mode="none", devices=None):
         layers = model.model.layers
         half = len(layers) // 2
 
-        if rank == 0:
-            model.model.layers = layers[:half]
-            # model.model.norm = None
-            # model.lm_head = None
-        else:
-            # model.model.embed_tokens = None
-            model.model.layers = layers[half:]
+        class Stage0(nn.Module):
+            def __init__(self, embed_tokens, layers):
+                super().__init__()
+                self.embed_tokens = embed_tokens
+                self.layers = nn.ModuleList(layers)
 
-        model = model.to(rank)
+            def forward(self, input_ids):
+                x = self.embed_tokens(input_ids)
+                for layer in self.layers:
+                    x = layer(x)
+                return x  # Send hidden_states to next stage
+
+        class Stage1(nn.Module):
+            def __init__(self, layers, norm, lm_head):
+                super().__init__()
+                self.layers = nn.ModuleList(layers)
+                self.norm = norm
+                self.lm_head = lm_head
+
+            def forward(self, hidden_states):
+                for layer in self.layers:
+                    hidden_states = layer(hidden_states)
+                hidden_states = self.norm(hidden_states)
+                logits = self.lm_head(hidden_states)
+                return logits  # Final output
+
+        if rank == 0:
+            stage_module = Stage0(model.model.embed_tokens, layers[:half])
+        else:
+            stage_module = Stage1(layers[half:], model.model.norm, model.lm_head)
+
+        stage_module = stage_module.to(rank)
         stage = PipelineStage(
-            submodule=model,
+            submodule=stage_module,
             stage_index=rank,
             num_stages=2,
-            device=torch.device(f"cuda:{rank}"),
+            device=torch.device(f"cuda:{rank}")
         )
         return stage, tokenizer
 
@@ -147,9 +170,9 @@ def main():
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
         if rank == 0:
-            schedule.step((dummy_input,))
+            schedule.step(dummy_input)
         else:
-            schedule.step()
+            output = schedule.step()
     else:
         trainer = Trainer(
             model=model,
