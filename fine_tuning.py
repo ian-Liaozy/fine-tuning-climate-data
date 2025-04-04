@@ -71,6 +71,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
             def forward(self, input_ids, position_ids=None):
                 if isinstance(input_ids, tuple):
                     input_ids = input_ids[0]
+                print("Stage0 input_ids shape:", input_ids.shape)
+                print("Stage0 position_ids:", position_ids)
                 batch_size, seq_length = input_ids.shape
                 if position_ids is None:
                     position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
