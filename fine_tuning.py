@@ -140,7 +140,7 @@ def main():
     if args.parallel_mode == "pipeline":
         rank = dist.get_rank()
         schedule = ScheduleGPipe(model, n_microbatches=4)
-        dummy_input = tokenizer("Hello world", return_tensors="pt")["input_ids"].to(rank)
+        dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
         if rank == 0:
             schedule.step(dummy_input)
