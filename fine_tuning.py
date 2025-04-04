@@ -18,6 +18,21 @@ def setup_distributed():
     torch.cuda.set_device(rank)
     return rank
 
+def patch_rotary_emb(model):
+    # Patch rotary embedding for each transformer layer.
+    for layer in model.model.layers:
+        orig_rotary = layer.self_attn.rotary_emb
+        def patched_rotary(position_ids, orig_rotary=orig_rotary):
+            result = orig_rotary(position_ids)
+            if result is None:
+                head_dim = model.config.hidden_size // model.config.num_attention_heads
+                batch_size, seq_len = position_ids.shape
+                cos = torch.ones(batch_size, seq_len, head_dim, device=position_ids.device)
+                sin = torch.zeros(batch_size, seq_len, head_dim, device=position_ids.device)
+                return (cos, sin)
+            return result
+        layer.self_attn.rotary_emb = patched_rotary
+
 def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
     world_size = dist.get_world_size()
@@ -42,7 +57,6 @@ def get_model(model_name, parallel_mode="none", devices=None):
         model = AutoModelForCausalLM.from_pretrained(model_name)
         model = model.cuda(rank)
         tp_mesh = DeviceMesh("cuda", list(range(world_size)))
-
         for name, module in model.named_modules():
             if hasattr(module, "self_attn") and hasattr(module, "mlp"):
                 try:
@@ -59,6 +73,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
     elif parallel_mode == "pipeline":
         model = AutoModelForCausalLM.from_pretrained(model_name)
+        # Patch the rotary embedding to avoid None returns.
+        patch_rotary_emb(model)
         layers = model.model.layers
         half = len(layers) // 2
 
@@ -152,6 +168,7 @@ def main():
     test_dataset = tokenized_datasets["test"]
     small_eval_dataset = test_dataset.select(range(500))
 
+    # Set dataset format to return PyTorch tensors.
     train_dataset.set_format("torch", columns=["input_ids", "labels"])
     test_dataset.set_format("torch", columns=["input_ids", "labels"])
 
@@ -184,26 +201,17 @@ def main():
         device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
 
-        # Create a DataLoader from the train_dataset
+        # Create a DataLoader from the train_dataset.
         train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-
-        # For demonstration, we iterate over one batch.
         for batch in train_dataloader:
-            # Assume the batch is a dict with key "input_ids"
             input_ids = batch["input_ids"].to(device)
-            # Create proper position_ids based on the sequence length of input_ids
             position_ids = torch.arange(input_ids.shape[1], device=device).unsqueeze(0).expand(input_ids.shape[0], -1)
-
-            # Run the pipeline forward pass.
             if rank == 0:
                 outputs = schedule.step(input_ids, position_ids=position_ids)
-                # 'outputs' is a list of microbatch outputs; for example, outputs[0] holds the logits.
                 print("Pipeline output shape:", outputs[0].shape)
-                # Here you could compute a loss using the batch["labels"] and do backpropagation.
             else:
                 _ = schedule.step()
-            # Break after one batch for demonstration purposes.
-            break
+            break  # Process one batch for demonstration.
     else:
         trainer = Trainer(
             model=model,
