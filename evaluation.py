@@ -1,73 +1,57 @@
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from datasets import load_dataset
 import os
 import math
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from datasets import load_dataset
-from accelerate import Accelerator
-from torch.utils.data import DataLoader
-from tqdm import tqdm
 
-# Environment setup
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-MODEL_PATH = "./checkpoints/final_dist_model"
+MODEL_PATH = "./checkpoints/final_dist_model"  # Load the latest trained model
 DATASET_PATH = "/scratch/zl3057/processed_txt"
-BATCH_SIZE = 16
-MAX_LENGTH = 42
 
-# Load model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-
-# Load dataset
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
 test_dataset = dataset["test"]
 
-# Tokenize
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto", load_in_4bit=True)
+
 def tokenize_function(examples):
     tokenized_inputs = tokenizer(
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=MAX_LENGTH,
+        max_length=42,
+        return_tensors="pt",
     )
-    tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
+    tokenized_inputs["labels"] = tokenized_inputs["input_ids"].clone()
     return tokenized_inputs
 
-tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True)
-tokenized_test_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_proc=1)
 
-# Setup Accelerator
-accelerator = Accelerator()
-
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
-    device_map={"": accelerator.process_index},
-    load_in_4bit=True
+eval_args = TrainingArguments(
+    output_dir="./eval_results_dist",
+    per_device_eval_batch_size=16,
+    dataloader_num_workers=8,
+    do_eval=True,
+    report_to="none",
+    fp16=False, 
+    bf16=False,
 )
 
-dataloader = DataLoader(tokenized_test_dataset, batch_size=BATCH_SIZE)
-dataloader = accelerator.prepare(dataloader)
+trainer = Trainer(
+    model=model,
+    args=eval_args,
+    eval_dataset=tokenized_test_dataset,
+)
 
+metrics = trainer.evaluate()
 
-# Evaluation
-model.eval()
-losses = []
+perplexity = math.exp(metrics["eval_loss"])
+metrics["perplexity"] = perplexity
 
-with torch.no_grad():
-    for batch in tqdm(dataloader, desc="Evaluating"):
-        outputs = model(**batch)
-        loss = outputs.loss
-        losses.append(accelerator.gather_for_metrics(loss.repeat(BATCH_SIZE)))
-
-# Aggregate and compute perplexity
-all_losses = torch.cat(losses)
-eval_loss = all_losses.mean().item()
-perplexity = math.exp(eval_loss)
-
-# Output
-print(f"Eval loss: {eval_loss:.4f}")
-print(f"Perplexity: {perplexity:.4f}")
+print("Evaluation Results:")
+for key, value in metrics.items():
+    print(f"{key}: {value:.4f}")
 
 with open("eval_results.txt", "w") as f:
-    f.write(f"Eval loss: {eval_loss:.4f}\n")
-    f.write(f"Perplexity: {perplexity:.4f}\n")
+    for key, value in metrics.items():
+        f.write(f"{key}: {value:.4f}\n")
