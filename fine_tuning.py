@@ -86,12 +86,13 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.norm = norm
                 self.lm_head = lm_head
 
-            def forward(self, hidden_states):
+            def forward(self, hidden_states, position_ids):
                 for layer in self.layers:
-                    hidden_states = layer(hidden_states)
+                    hidden_states = layer(hidden_states, position_ids=position_ids)[0]
+
                 hidden_states = self.norm(hidden_states)
                 logits = self.lm_head(hidden_states)
-                return logits  # Final output
+                return logits
 
         if rank == 0:
             stage_module = Stage0(model.model.embed_tokens, layers[:half])
@@ -176,9 +177,9 @@ def main():
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
         if rank == 0:
-            schedule.step(dummy_input)
+            schedule.step((dummy_input,))
         else:
-            output = schedule.step()
+            _ = schedule.step()
     else:
         trainer = Trainer(
             model=model,
