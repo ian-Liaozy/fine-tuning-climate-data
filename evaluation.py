@@ -5,7 +5,7 @@ import math
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-MODEL_PATH = "./checkpoints/final_model"  # Load the latest trained model
+MODEL_PATH = "./checkpoints/final_dist_model"  # Load the latest trained model
 DATASET_PATH = "/scratch/zl3057/processed_txt"
 
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
@@ -28,7 +28,7 @@ def tokenize_function(examples):
 tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_proc=1)
 
 eval_args = TrainingArguments(
-    output_dir="./eval_results",
+    output_dir="./eval_results_dist",
     per_device_eval_batch_size=16,  
     dataloader_num_workers=8,
     do_eval=True,
