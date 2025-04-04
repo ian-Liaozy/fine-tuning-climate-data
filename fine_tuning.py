@@ -64,7 +64,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
         if rank == 0:
             model.model.layers = layers[:half]
             # model.model.norm = None
-            model.lm_head = None
+            # model.lm_head = None
         else:
             model.model.embed_tokens = None
             model.model.layers = layers[half:]
