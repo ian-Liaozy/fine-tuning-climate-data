@@ -9,25 +9,6 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
-from pippy import Pipe, pipe_split
-
-class LlamaSplit(nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.embed_tokens = model.model.embed_tokens
-        self.layers = model.model.layers
-        self.norm = model.model.norm
-        self.lm_head = model.lm_head
-
-    def forward(self, input_ids):
-        x = self.embed_tokens(input_ids)
-        pipe_split()  # Start pipeline stage 1
-        for i, layer in enumerate(self.layers):
-            x = layer(x)
-        pipe_split()  # Start pipeline stage 2
-        x = self.norm(x)
-        return self.lm_head(x)
-    
 
 def setup_distributed():
     if dist.is_initialized():
@@ -76,13 +57,55 @@ def get_model(model_name, parallel_mode="none", devices=None):
         return model, tokenizer
 
     elif parallel_mode == "pipeline":
-        base_model = AutoModelForCausalLM.from_pretrained(model_name)
-        model = LlamaSplit(base_model).to(torch.device(f"cuda:{rank}"))
-        
-        input_example = (torch.ones((1, 42), dtype=torch.long).to(torch.device(f"cuda:{rank}")),)
-        pipe = Pipe.from_tracing(model, input_example, num_stages=2)
-        stage_module = pipe.get_stage_module(rank).to(torch.device(f"cuda:{rank}"))
-        stage = pipe.build_stage(rank, device=torch.device(f"cuda:{rank}"))
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        layers = model.model.layers
+        half = len(layers) // 2
+
+        class Stage0(nn.Module):
+            def __init__(self, embed_tokens, layers):
+                super().__init__()
+                self.embed_tokens = embed_tokens
+                self.layers = nn.ModuleList(layers)
+
+            def forward(self, input_ids):
+                position_ids = torch.arange(
+                    input_ids.shape[1], dtype=torch.long, device=input_ids.device
+                ).unsqueeze(0).expand(input_ids.shape[0], -1)
+
+                x = self.embed_tokens(input_ids)
+
+                for layer in self.layers:
+                    x = layer(x, position_ids=position_ids)[0]  # discard attn_weights
+
+                return x, position_ids
+
+        class Stage1(nn.Module):
+            def __init__(self, layers, norm, lm_head):
+                super().__init__()
+                self.layers = nn.ModuleList(layers)
+                self.norm = norm
+                self.lm_head = lm_head
+
+            def forward(self, hidden_states, position_ids):
+                for layer in self.layers:
+                    hidden_states = layer(hidden_states, position_ids=position_ids)[0]
+
+                hidden_states = self.norm(hidden_states)
+                logits = self.lm_head(hidden_states)
+                return logits
+
+        if rank == 0:
+            stage_module = Stage0(model.model.embed_tokens, layers[:half])
+        else:
+            stage_module = Stage1(layers[half:], model.model.norm, model.lm_head)
+
+        stage_module = stage_module.to(rank)
+        stage = PipelineStage(
+            submodule=stage_module,
+            stage_index=rank,
+            num_stages=2,
+            device=torch.device(f"cuda:{rank}")
+        )
         return stage, tokenizer
 
     else:
@@ -156,7 +179,7 @@ def main():
         if rank == 0:
             schedule.step(dummy_input)
         else:
-            schedule.step()
+            _ = schedule.step()
     else:
         trainer = Trainer(
             model=model,
