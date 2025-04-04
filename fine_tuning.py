@@ -152,6 +152,9 @@ def main():
     test_dataset = tokenized_datasets["test"]
     small_eval_dataset = test_dataset.select(range(500))
 
+    train_dataset.set_format("torch", columns=["input_ids", "labels"])
+    test_dataset.set_format("torch", columns=["input_ids", "labels"])
+
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
