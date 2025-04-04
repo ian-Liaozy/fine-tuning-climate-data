@@ -17,10 +17,6 @@ MAX_LENGTH = 42
 
 # Load model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
-    load_in_4bit=True
-)
 
 # Load dataset
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
@@ -42,8 +38,16 @@ tokenized_test_dataset.set_format(type="torch", columns=["input_ids", "attention
 
 # Setup Accelerator
 accelerator = Accelerator()
+
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_PATH,
+    device_map={"": accelerator.process_index},
+    load_in_4bit=True
+)
+
 dataloader = DataLoader(tokenized_test_dataset, batch_size=BATCH_SIZE)
-model, dataloader = accelerator.prepare(model, dataloader)
+dataloader = accelerator.prepare(dataloader)
+
 
 # Evaluation
 model.eval()
