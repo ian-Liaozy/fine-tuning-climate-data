@@ -19,19 +19,31 @@ def setup_distributed():
     return rank
 
 def patch_rotary_emb(model):
-    # Patch rotary embedding for each transformer layer.
+    # For each transformer layer, patch the self-attention module
     for layer in model.model.layers:
-        orig_rotary = layer.self_attn.rotary_emb
-        def patched_rotary(position_ids, orig_rotary=orig_rotary):
-            result = orig_rotary(position_ids)
-            if result is None:
+        if not hasattr(layer.self_attn, 'rotary_emb'):
+            # If rotary_emb is not defined, assign a dummy rotary function.
+            print("Layer.self_attn has no rotary_emb attribute. Patching with dummy_rotary.")
+            def dummy_rotary(position_ids):
                 head_dim = model.config.hidden_size // model.config.num_attention_heads
                 batch_size, seq_len = position_ids.shape
                 cos = torch.ones(batch_size, seq_len, head_dim, device=position_ids.device)
                 sin = torch.zeros(batch_size, seq_len, head_dim, device=position_ids.device)
                 return (cos, sin)
-            return result
-        layer.self_attn.rotary_emb = patched_rotary
+            layer.self_attn.rotary_emb = dummy_rotary
+        else:
+            # Otherwise, wrap the existing rotary_emb to handle None outputs.
+            orig_rotary = layer.self_attn.rotary_emb
+            def patched_rotary(position_ids, orig_rotary=orig_rotary):
+                result = orig_rotary(position_ids)
+                if result is None:
+                    head_dim = model.config.hidden_size // model.config.num_attention_heads
+                    batch_size, seq_len = position_ids.shape
+                    cos = torch.ones(batch_size, seq_len, head_dim, device=position_ids.device)
+                    sin = torch.zeros(batch_size, seq_len, head_dim, device=position_ids.device)
+                    return (cos, sin)
+                return result
+            layer.self_attn.rotary_emb = patched_rotary
 
 def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
