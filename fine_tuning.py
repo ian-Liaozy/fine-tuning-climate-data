@@ -90,6 +90,10 @@ def get_model(model_name, parallel_mode="none", devices=None):
                 self.lm_head = lm_head
 
             def forward(self, hidden_states, position_ids=None):
+                if position_ids is None:
+                    batch_size, seq_length, _ = hidden_states.shape
+                    position_ids = torch.arange(seq_length, dtype=torch.long, device=hidden_states.device)
+                    position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
                 for layer in self.layers:
                     hidden_states = layer(hidden_states, position_ids=position_ids)[0]
                 hidden_states = self.norm(hidden_states)
