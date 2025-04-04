@@ -32,7 +32,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
     if parallel_mode == "data":
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
-        model = DDP(model.cuda(rank), device_ids=[rank])
+        model = model.cuda(rank)
+        model = DDP(model, device_ids=[rank])
         return model, tokenizer
 
     elif parallel_mode == "tensor":
@@ -78,7 +79,8 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
-        return model.cuda(), tokenizer
+        model = model.cuda(rank)
+        return model, tokenizer
 
 def tokenize_function(tokenizer, examples):
     tokenized_inputs = tokenizer(
@@ -115,8 +117,8 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     training_args = TrainingArguments(
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
