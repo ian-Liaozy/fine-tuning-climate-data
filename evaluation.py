@@ -12,7 +12,7 @@ dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"}
 test_dataset = dataset["test"]
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to("cuda")
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto", load_in_4bit=True)
 
 def tokenize_function(examples):
     tokenized_inputs = tokenizer(
