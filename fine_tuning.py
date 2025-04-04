@@ -73,7 +73,6 @@ def get_model(model_name, parallel_mode="none", devices=None):
             stage_index=rank,
             num_stages=2,
             device=torch.device(f"cuda:{rank}"),
-            # Remove input_args to use runtime shape inference
         )
         return stage, tokenizer
 
@@ -119,7 +118,7 @@ def main():
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
-        fp16=False,
+        fp16=True,
         bf16=False,
         optim="adamw_bnb_8bit",
         save_total_limit=2,
