@@ -176,16 +176,31 @@ def main():
     )
 
     if args.parallel_mode == "pipeline":
+        from torch.utils.data import DataLoader
         rank = dist.get_rank()
         device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
-        dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
-        position_ids = torch.arange(42, device=device).unsqueeze(0).expand(4, -1)
 
-        if rank == 0:
-            schedule.step(dummy_input, position_ids=position_ids)
-        else:
-            _ = schedule.step()
+        # Create a DataLoader from the train_dataset
+        train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+
+        # For demonstration, we iterate over one batch.
+        for batch in train_dataloader:
+            # Assume the batch is a dict with key "input_ids"
+            input_ids = batch["input_ids"].to(device)
+            # Create proper position_ids based on the sequence length of input_ids
+            position_ids = torch.arange(input_ids.shape[1], device=device).unsqueeze(0).expand(input_ids.shape[0], -1)
+
+            # Run the pipeline forward pass.
+            if rank == 0:
+                outputs = schedule.step(input_ids, position_ids=position_ids)
+                # 'outputs' is a list of microbatch outputs; for example, outputs[0] holds the logits.
+                print("Pipeline output shape:", outputs[0].shape)
+                # Here you could compute a loss using the batch["labels"] and do backpropagation.
+            else:
+                _ = schedule.step()
+            # Break after one batch for demonstration purposes.
+            break
     else:
         trainer = Trainer(
             model=model,
