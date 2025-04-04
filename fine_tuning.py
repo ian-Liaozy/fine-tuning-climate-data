@@ -136,15 +136,33 @@ def main():
         ddp_find_unused_parameters=False,
     )
 
-    if args.parallel_mode == "pipeline":
-        from torch.distributed.pipelining import ScheduleGPipe
-        schedule = ScheduleGPipe(model, n_microbatches=4)
-        x = torch.ones((2, 42), dtype=torch.long).to(torch.cuda.current_device())
-        if dist.get_rank() == 0:
-            schedule.step(x)
+    if parallel_mode == "pipeline":
+        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
+
+        # === Manual split ===
+        layers = model.model.layers
+        half = len(layers) // 2
+
+        if rank == 0:
+            model.model.layers = layers[:half]
+            model.model.norm = None
+            model.lm_head = None
         else:
-            output = schedule.step()
-        return
+            model.model.embed_tokens = None
+            model.model.layers = layers[half:]
+
+        model = model.to(rank)  # ensure device match!
+
+        # === PipelineStage with runtime shape inference ===
+        stage = PipelineStage(
+            submodule=model,
+            stage_index=rank,
+            num_stages=2,
+            device=torch.device(f"cuda:{rank}"),
+            # ✅ no input_args => use runtime shape inference
+        )
+
+        return stage, AutoTokenizer.from_pretrained(model_name)
 
     trainer = Trainer(
         model=model,
