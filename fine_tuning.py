@@ -145,7 +145,7 @@ def main():
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
         if rank == 0:
-            schedule.step((dummy_input,))
+            schedule.step(dummy_input)
         else:
             schedule.step()
     else:
