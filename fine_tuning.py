@@ -139,6 +139,7 @@ def main():
 
     if args.parallel_mode == "pipeline":
         rank = dist.get_rank()
+        device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
         dummy_input = torch.randint(0, tokenizer.vocab_size, (4, 42), device=device)
 
