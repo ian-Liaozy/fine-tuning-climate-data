@@ -1,42 +1,28 @@
 import os
-import argparse
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+import argparse
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe
-from transformers import (
-    AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments,
-    BitsAndBytesConfig
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 
 def setup_distributed():
     if not dist.is_initialized():
         dist.init_process_group("nccl")
-    rank = dist.get_rank()
-    torch.cuda.set_device(rank)
-    return rank
-
-def split_llama(model, stage_idx, num_stages):
-    """Manually partition model for 2-stage pipeline."""
-    assert num_stages == 2
-    layers = model.model.layers
-    n = len(layers)
-    half = n // 2
-
-    if stage_idx == 0:
-        model.model.layers = layers[:half]
-        model.model.norm = None
-        model.lm_head = None
-    else:
-        model.model.embed_tokens = None
-        model.model.layers = layers[half:]
-    return model
+        torch.cuda.set_device(dist.get_rank())
+    return dist.get_rank()
 
 def get_model(model_name, parallel_mode="none", devices=None):
+    rank = setup_distributed()
+    world_size = dist.get_world_size()
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
+
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
@@ -44,15 +30,35 @@ def get_model(model_name, parallel_mode="none", devices=None):
         bnb_4bit_compute_dtype=torch.float16,
     )
 
-    rank = setup_distributed()
-    model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
+    if parallel_mode == "data":
+        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+        model = DDP(model.cuda(rank), device_ids=[rank])
+        return model, tokenizer
 
-    if parallel_mode == "pipeline":
-        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
+    elif parallel_mode == "tensor":
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = model.cuda(rank)
+        tp_mesh = DeviceMesh("cuda", list(range(world_size)))
+
+        for name, module in model.named_modules():
+            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+                try:
+                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
+                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
+                    ColwiseParallel(module.mlp.fc1, tp_mesh)
+                    RowwiseParallel(module.mlp.fc2, tp_mesh)
+                    print(f"[TP] Applied tensor parallel to {name}")
+                except Exception as e:
+                    print(f"[TP] Skipped {name} due to: {e}")
+        return model, tokenizer
+
+    elif parallel_mode == "pipeline":
+        model = AutoModelForCausalLM.from_pretrained(model_name)
         layers = model.model.layers
         half = len(layers) // 2
 
-        # === Manual partition ===
         if rank == 0:
             model.model.layers = layers[:half]
             model.model.norm = None
@@ -61,44 +67,25 @@ def get_model(model_name, parallel_mode="none", devices=None):
             model.model.embed_tokens = None
             model.model.layers = layers[half:]
 
-        model = model.to(rank)  # ensure all parts on CUDA
-
-        # === PipelineStage with runtime shape inference ===
+        model = model.to(rank)
         stage = PipelineStage(
             submodule=model,
             stage_index=rank,
             num_stages=2,
-            device=torch.device(f"cuda:{rank}"),
+            device=torch.device(f"cuda:{rank}")
         )
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
         return stage, tokenizer
 
-    elif parallel_mode == "tensor":
-        model = model.cuda(rank)
-        mesh = DeviceMesh("cuda", list(range(dist.get_world_size())))
-        for name, module in model.named_modules():
-            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
-                try:
-                    ColwiseParallel(module.self_attn.q_proj, mesh)
-                    ColwiseParallel(module.self_attn.k_proj, mesh)
-                    ColwiseParallel(module.self_attn.v_proj, mesh)
-                    RowwiseParallel(module.self_attn.out_proj, mesh)
-                    ColwiseParallel(module.mlp.fc1, mesh)
-                    RowwiseParallel(module.mlp.fc2, mesh)
-                    print(f"[TP] Applied tensor parallel to {name}")
-                except Exception as e:
-                    print(f"[TP] Skipped {name} due to: {e}")
-        return model, AutoTokenizer.from_pretrained(model_name)
-
-    elif parallel_mode == "data":
-        model = AutoModelForCausalLM.from_pretrained(model_name,
-            quantization_config=bnb_config, use_cache=False)
-        model = DDP(model.cuda(rank), device_ids=[rank])
-        return model, AutoTokenizer.from_pretrained(model_name)
-
     else:
-        model = model.cuda()
-        return model, AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+        return model.cuda(), tokenizer
+
+def tokenize_function(tokenizer, examples):
+    tokenized_inputs = tokenizer(
+        examples["text"], truncation=True, padding="max_length", max_length=42
+    )
+    tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
+    return tokenized_inputs
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,17 +102,17 @@ def main():
         "test": f"{dataset_path}/test/*.txt"
     })
 
-    model, tokenizer = get_model(model_name, args.parallel_mode)
-    tokenizer.pad_token = tokenizer.eos_token
+    model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode)
 
-    def tokenize_fn(examples):
-        result = tokenizer(examples["text"], padding="max_length", truncation=True, max_length=42)
-        result["labels"] = result["input_ids"].copy()
-        return result
-
-    tokenized = dataset.map(tokenize_fn, batched=True, num_proc=1)
-    train_ds = tokenized["train"]
-    eval_ds = tokenized["test"].select(range(500))
+    tokenized_datasets = dataset.map(
+        lambda examples: tokenize_function(tokenizer, examples),
+        batched=True,
+        load_from_cache_file=True,
+        num_proc=1
+    )
+    train_dataset = tokenized_datasets["train"]
+    test_dataset = tokenized_datasets["test"]
+    small_eval_dataset = test_dataset.select(range(500))
 
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
@@ -148,47 +135,30 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
+        fsdp=None,
+        deepspeed=None,
     )
 
-    if parallel_mode == "pipeline":
-        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=False)
-
-        # === Manual split ===
-        layers = model.model.layers
-        half = len(layers) // 2
+    if args.parallel_mode == "pipeline":
+        rank = dist.get_rank()
+        schedule = ScheduleGPipe(model, n_microbatches=4)
+        dummy_input = tokenizer("Hello world", return_tensors="pt")["input_ids"].to(rank)
 
         if rank == 0:
-            model.model.layers = layers[:half]
-            model.model.norm = None
-            model.lm_head = None
+            schedule.step(dummy_input)
         else:
-            model.model.embed_tokens = None
-            model.model.layers = layers[half:]
-
-        model = model.to(rank)  # ensure device match!
-
-        # === PipelineStage with runtime shape inference ===
-        stage = PipelineStage(
-            submodule=model,
-            stage_index=rank,
-            num_stages=2,
-            device=torch.device(f"cuda:{rank}"),
-            # ✅ no input_args => use runtime shape inference
+            schedule.step()
+    else:
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=small_eval_dataset,
         )
-
-        return stage, AutoTokenizer.from_pretrained(model_name)
-
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=eval_ds,
-    )
-
-    trainer.train()
-    trainer.save_model("./checkpoints/final_dist_model")
-    tokenizer.save_pretrained("./checkpoints/final_dist_model")
-    print("Training complete and model saved.")
+        trainer.train()
+        trainer.save_model("./checkpoints/final_dist_model")
+        tokenizer.save_pretrained("./checkpoints/final_dist_model")
+        print("Training complete and model saved.")
 
 if __name__ == "__main__":
     main()
