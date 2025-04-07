@@ -205,6 +205,7 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
+        deepspeed="ds_config.json"
     )
     rank = dist.get_rank()
     device = torch.device(f"cuda:{rank}")
