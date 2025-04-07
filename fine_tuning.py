@@ -54,8 +54,8 @@ def patch_rotary_emb(model):
             layer.self_attn.rotary_emb = patched_rotary
 
 
-def get_model(model_name, parallel_mode="none", devices=None):
-    rank, world_size = setup_distributed(local_rank=args.local_rank)
+def get_model(model_name, parallel_mode="none", local_rank=None):
+    rank, world_size = setup_distributed(local_rank)
 
 
     # Use your own tokenizer
@@ -172,7 +172,7 @@ def main():
         "test": f"{dataset_path}/test/*.txt"
     })
 
-    model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode)
+    model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode, local_rank=args.local_rank)
 
     tokenized_datasets = dataset.map(
         lambda examples: tokenize_function(tokenizer, examples),
