@@ -284,10 +284,11 @@ def main():
         ddp_find_unused_parameters=False,
     )
     rank = dist.get_rank()
+    device = torch.device(f"cuda:{rank}")
 
     if args.parallel_mode == "pipeline":
         
-        device = torch.device(f"cuda:{rank}")
+        
         schedule = ScheduleGPipe(model, n_microbatches=4)
 
         # Create a DataLoader from the train_dataset.
