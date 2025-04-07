@@ -194,8 +194,8 @@ def main():
     test_dataset.set_format("torch", columns=["input_ids", "labels"])
 
     training_args = TrainingArguments(
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
@@ -204,7 +204,7 @@ def main():
         dataloader_num_workers=4,
         output_dir="./checkpoints/",
         warmup_steps=5,
-        max_steps=25,
+        max_steps=500,
         eval_strategy="steps",
         eval_steps=25,
         save_steps=25,
