@@ -285,7 +285,6 @@ def main():
     )
 
     if args.parallel_mode == "pipeline":
-        from torch.utils.data import DataLoader
         rank = dist.get_rank()
         device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
