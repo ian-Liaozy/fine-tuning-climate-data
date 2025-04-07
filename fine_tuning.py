@@ -267,6 +267,22 @@ def main():
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
     else:
+        training_args = TrainingArguments(
+            gradient_accumulation_steps=4,
+            fp16=True,
+            output_dir="./checkpoints/",
+            max_steps=500,
+            evaluation_strategy="steps",
+            eval_steps=25,
+            save_steps=25,
+            logging_steps=25,
+            learning_rate=5e-5,
+            report_to="none",
+            remove_unused_columns=False,
+            save_safetensors=False,
+            ddp_find_unused_parameters=False,
+            deepspeed="ds_config.json"
+        )
         trainer = Trainer(
             model=model,
             args=training_args,
