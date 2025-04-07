@@ -147,7 +147,7 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         return stage, tokenizer
 
     else:
-        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+        model = AutoModelForCausalLM.from_pretrained(model_name)
         # model = model.cuda(local_rank)
         return model, tokenizer
 
