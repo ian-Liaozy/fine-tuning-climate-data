@@ -10,11 +10,13 @@ from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoin
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 
-def setup_distributed():
+def setup_distributed(world_size):
     if dist.is_initialized():
         return dist.get_rank()
-    dist.init_process_group("nccl")
-    rank = dist.get_rank()
+    # rank = dist.get_rank()
+    rank = int(os.environ.get("RANK", 0))
+    
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
     return rank
 
@@ -47,9 +49,9 @@ def patch_rotary_emb(model):
 
 
 def get_model(model_name, parallel_mode="none", devices=None):
-    rank = setup_distributed()
-    torch.cuda.set_device(rank)
     world_size = dist.get_world_size()
+    rank = setup_distributed(world_size)
+
 
     # Use your own tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
