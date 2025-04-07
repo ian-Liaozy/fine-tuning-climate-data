@@ -4,12 +4,13 @@ import torch.nn as nn
 import torch.distributed as dist
 import argparse
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+
 
 def setup_distributed():
     if dist.is_initialized():
@@ -73,19 +74,27 @@ def get_model(model_name, parallel_mode="none", devices=None):
     elif parallel_mode == "tensor":
         model = AutoModelForCausalLM.from_pretrained(model_name)
         model = model.cuda(rank)
+
         tp_mesh = DeviceMesh("cuda", list(range(world_size)))
+
+        # Construct the parallelization spec
+        tp_spec = {}
+
         for name, module in model.named_modules():
             if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+                prefix = name + "."
                 try:
-                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
-                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
-                    ColwiseParallel(module.mlp.fc1, tp_mesh)
-                    RowwiseParallel(module.mlp.fc2, tp_mesh)
-                    print(f"[TP] Applied tensor parallel to {name}")
+                    tp_spec[prefix + "self_attn.q_proj"] = ColwiseParallel()
+                    tp_spec[prefix + "self_attn.k_proj"] = ColwiseParallel()
+                    tp_spec[prefix + "self_attn.v_proj"] = ColwiseParallel()
+                    tp_spec[prefix + "self_attn.out_proj"] = RowwiseParallel()
+                    tp_spec[prefix + "mlp.fc1"] = ColwiseParallel()
+                    tp_spec[prefix + "mlp.fc2"] = RowwiseParallel()
+                    print(f"[TP] Will apply tensor parallel to {name}")
                 except Exception as e:
                     print(f"[TP] Skipped {name} due to: {e}")
+
+        parallelize_module(model, tp_mesh, tp_spec)
 
         return model, tokenizer
 
