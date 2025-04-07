@@ -14,17 +14,20 @@ from torch.utils.data import DataLoader
 
 def setup_distributed(local_rank=None):
     if dist.is_initialized():
-        return dist.get_rank()
-    # rank = dist.get_rank()
+        return dist.get_rank(), dist.get_world_size()
+
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
+
+    # Correct: use local_rank for setting CUDA device
     if local_rank is not None and local_rank >= 0:
         torch.cuda.set_device(local_rank)
     else:
+        local_rank = rank
         torch.cuda.set_device(rank)
-    
+
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    return rank, world_size
+    return rank, world_size, local_rank
 
 def patch_rotary_emb(model):
     # Iterate over each transformer layer in the model.
@@ -55,8 +58,7 @@ def patch_rotary_emb(model):
 
 
 def get_model(model_name, parallel_mode="none", local_rank=None):
-    rank, world_size = setup_distributed(local_rank)
-
+    rank, world_size, local_rank = setup_distributed(local_rank)
 
     # Use your own tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -146,7 +148,7 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
 
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
-        model = model.cuda(rank)
+        model = model.cuda(local_rank)
         return model, tokenizer
 
 def tokenize_function(tokenizer, examples):
@@ -176,7 +178,7 @@ def main():
 
     assert model is not None, "Model was not returned from get_model()"
     assert tokenizer is not None, "Tokenizer was not returned from get_model()"
-    
+
     tokenized_datasets = dataset.map(
         lambda examples: tokenize_function(tokenizer, examples),
         batched=True,
