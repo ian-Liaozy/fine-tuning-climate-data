@@ -4,28 +4,30 @@
   "gradient_accumulation_steps": "auto",
   
   "zero_optimization": {
-      "stage": 3,
+      "stage": 2,
       "offload_optimizer": {
-          "device": "none",
-          "pin_memory": true
+          "device": "none"
       },
-      "offload_param": {
-          "device": "none",
-          "pin_memory": true
-      },
-      "overlap_comm": true,
-      "contiguous_gradients": true,
-      "reduce_bucket_size": 5e8,
-      "stage3_prefetch_bucket_size": 5e8,
-      "stage3_param_persistence_threshold": 1e6
+    "allgather_partitions": true,
+    "allgather_bucket_size": 2e8,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 2e8,
+    "contiguous_gradients": true
   },
   
   "fp16": {
       "enabled": true,
-      "loss_scale_window": 100
+      "loss_scale_window": 100,
+      "initial_scale_power": 16
   },
   
+  "flops_profiler": {
+      "enabled": true,
+      "profile_step": 10,
+      "module_depth": -1
+    },
   "gradient_clipping": 1.0,
-  "steps_per_print": 10,
+  "steps_per_print": 50,
   "wall_clock_breakdown": false
 }

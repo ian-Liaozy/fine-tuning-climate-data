@@ -148,6 +148,7 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         return stage, tokenizer
 
     else:
+        # deepspeed
         # model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -285,11 +286,12 @@ def main():
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
     else:
+        # deepspeed
         training_args = TrainingArguments(
             output_dir="./checkpoints",
             per_device_train_batch_size=4,
-            gradient_accumulation_steps=8,
-            gradient_checkpointing=True,
+            gradient_accumulation_steps=4,
+            gradient_checkpointing=False,
             max_steps=500,
 
             fp16=True,  # must match ds_config
@@ -304,6 +306,8 @@ def main():
             report_to="none",
             remove_unused_columns=False,
             save_safetensors=False,
+            dataloader_num_workers=8,
+            dataloader_pin_memory=True,
 
             ddp_find_unused_parameters=False,
             deepspeed="ds_config.json",
