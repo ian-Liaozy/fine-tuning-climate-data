@@ -174,6 +174,9 @@ def main():
 
     model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode, local_rank=args.local_rank)
 
+    assert model is not None, "Model was not returned from get_model()"
+    assert tokenizer is not None, "Tokenizer was not returned from get_model()"
+    
     tokenized_datasets = dataset.map(
         lambda examples: tokenize_function(tokenizer, examples),
         batched=True,
