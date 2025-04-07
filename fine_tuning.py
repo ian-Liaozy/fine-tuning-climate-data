@@ -67,23 +67,94 @@ def get_model(model_name, parallel_mode="none", devices=None):
         return model, tokenizer
 
     elif parallel_mode == "tensor":
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-        model = model.cuda(rank)
-        tp_mesh = DeviceMesh("cuda", list(range(world_size)))
-        for name, module in model.named_modules():
-            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
-                try:
-                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
-                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
-                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
-                    ColwiseParallel(module.mlp.fc1, tp_mesh)
-                    RowwiseParallel(module.mlp.fc2, tp_mesh)
-                    print(f"[TP] Applied tensor parallel to {name}")
-                except Exception as e:
-                    print(f"[TP] Skipped {name} due to: {e}")
-        return model, tokenizer
+        class AllGatherFunction(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, input_tensor, world_size):
+                ctx.world_size = world_size
+                ctx.input_shape = input_tensor.shape
+                
+                output = [torch.zeros_like(input_tensor) for _ in range(world_size)]
+                dist.all_gather(output, input_tensor)
+                
+                return torch.cat(output, dim=-1)
+            
+            @staticmethod
+            def backward(ctx, grad_output):
+                world_size = ctx.world_size
+                input_shape = ctx.input_shape
+                
+                dim_size = grad_output.size(-1) // world_size
+                
+                rank = dist.get_rank()
+                grad_slice = grad_output.narrow(-1, rank * dim_size, dim_size)
+                
+                return grad_slice, None
 
+        def all_gather_with_grad(tensor, world_size=None):
+            if world_size is None:
+                world_size = dist.get_world_size()
+                
+            return AllGatherFunction.apply(tensor, world_size)
+        class TPLinear(nn.Module):
+            def __init__(self, in_features, out_features, bias=True):
+                super().__init__()
+                self.in_features = in_features
+                self.out_features = out_features
+                
+                self.world_size = dist.get_world_size()
+                self.rank = dist.get_rank()
+                
+                self.out_features_per_gpu = out_features // self.world_size
+                
+                self.linear = nn.Linear(in_features, self.out_features_per_gpu, bias=bias)
+            
+            def forward(self, x):
+                local_output = self.linear(x)
+                
+                return all_gather_with_grad(local_output)
+        class TPLlamaModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.embeddings = nn.Embedding(32000, 768)
+                
+                self.layers = nn.ModuleList([
+                    TPLinear(768, 768) for _ in range(6)
+                ])
+                
+                self.lm_head = TPLinear(768, 32000)
+            
+            def forward(self, input_ids, labels=None):
+                x = self.embeddings(input_ids)
+                for layer in self.layers:
+                    x = nn.functional.gelu(layer(x))
+                logits = self.lm_head(x)
+                
+                loss = None
+                if labels is not None:
+                    loss_fct = nn.CrossEntropyLoss()
+                    loss = loss_fct(logits.view(-1, 32000), labels.view(-1))
+                
+                return type('Output', (), {'loss': loss, 'logits': logits})()
+        # model = AutoModelForCausalLM.from_pretrained(model_name)
+        # model = model.cuda(rank)
+        # tp_mesh = DeviceMesh("cuda", list(range(world_size)))
+        # for name, module in model.named_modules():
+        #     if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+        #         try:
+        #             ColwiseParallel(module.self_attn.q_proj, tp_mesh)
+        #             ColwiseParallel(module.self_attn.k_proj, tp_mesh)
+        #             ColwiseParallel(module.self_attn.v_proj, tp_mesh)
+        #             RowwiseParallel(module.self_attn.out_proj, tp_mesh)
+        #             ColwiseParallel(module.mlp.fc1, tp_mesh)
+        #             RowwiseParallel(module.mlp.fc2, tp_mesh)
+        #             print(f"[TP] Applied tensor parallel to {name}")
+        #         except Exception as e:
+        #             print(f"[TP] Skipped {name} due to: {e}")
+        # return model, tokenizer
+        device = torch.device("cuda", rank)
+        model = TPLlamaModel().to(device)
+
+        return model, tokenizer
     elif parallel_mode == "pipeline":
         model = AutoModelForCausalLM.from_pretrained(model_name)
         # Patch the rotary embedding to avoid None returns.
