@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.distributed as dist
 import argparse
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module, LLamaSharder
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
