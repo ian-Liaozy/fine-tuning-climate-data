@@ -12,15 +12,18 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 
-def setup_distributed():
+def setup_distributed(local_rank=None):
     if dist.is_initialized():
         return dist.get_rank()
     # rank = dist.get_rank()
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
+    if local_rank is not None and local_rank >= 0:
+        torch.cuda.set_device(local_rank)
+    else:
+        torch.cuda.set_device(rank)
     
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
     return rank, world_size
 
 def patch_rotary_emb(model):
@@ -52,7 +55,7 @@ def patch_rotary_emb(model):
 
 
 def get_model(model_name, parallel_mode="none", devices=None):
-    rank, world_size = setup_distributed()
+    rank, world_size = setup_distributed(local_rank=args.local_rank)
 
 
     # Use your own tokenizer
@@ -157,6 +160,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel-mode", type=str, default="none",
                         choices=["none", "data", "tensor", "pipeline"])
+    parser.add_argument("--local_rank", type=int, default=-1, help="Local rank passed by DeepSpeed")
     args = parser.parse_args()
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
