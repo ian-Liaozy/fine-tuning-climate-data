@@ -283,9 +283,10 @@ def main():
         save_safetensors=False,
         ddp_find_unused_parameters=False,
     )
+    rank = dist.get_rank()
 
     if args.parallel_mode == "pipeline":
-        rank = dist.get_rank()
+        
         device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
 
