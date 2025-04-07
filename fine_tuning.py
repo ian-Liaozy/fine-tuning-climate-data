@@ -279,8 +279,8 @@ def main():
     # small_eval_dataset = test_dataset.select(range(500))
 
     # Set dataset format to return PyTorch tensors.
-    train_dataset.set_format("torch", columns=["input_ids", "labels"])
-    test_dataset.set_format("torch", columns=["input_ids", "labels"])
+    # train_dataset.set_format("torch", columns=["input_ids", "labels"])
+    # test_dataset.set_format("torch", columns=["input_ids", "labels"])
 
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
