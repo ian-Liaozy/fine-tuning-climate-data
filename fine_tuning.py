@@ -10,7 +10,7 @@ from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoin
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 
 
 def setup_distributed(local_rank=None):
