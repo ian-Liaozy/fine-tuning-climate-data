@@ -150,12 +150,11 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
     else:
         # model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
         model = AutoModelForCausalLM.from_pretrained(
-            model_name, 
+            model_name,
             quantization_config=bnb_config,
-            torch_dtype=torch.float16,
-            device_map="auto",
+            device_map=None,  # Explicitly set to None
             use_cache=False
-        )
+        ).to(f"cuda:{local_rank}")
         # model = model.cuda(local_rank)
         model = prepare_model_for_kbit_training(model)
 
@@ -290,7 +289,6 @@ def main():
         training_args = TrainingArguments(
             output_dir="./checkpoints",
             per_device_train_batch_size=1,
-            per_device_eval_batch_size=1,
             gradient_accumulation_steps=8,
             gradient_checkpointing=True,
             max_steps=500,
