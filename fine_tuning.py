@@ -160,12 +160,11 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
 
         # Add LoRA adapters
         lora_config = LoraConfig(
-            r=8,
-            lora_alpha=32,
-            target_modules=["q_proj", "v_proj"],  # For LLaMA model
-            lora_dropout=0.05,
+            r=8,  
+            lora_alpha=16,
+            lora_dropout=0.1,
             bias="none",
-            task_type="CAUSAL_LM"
+            task_type=TaskType.CAUSAL_LM,
         )
         model = get_peft_model(model, lora_config)
         return model, tokenizer
@@ -288,7 +287,7 @@ def main():
     else:
         training_args = TrainingArguments(
             output_dir="./checkpoints",
-            per_device_train_batch_size=1,
+            per_device_train_batch_size=4,
             gradient_accumulation_steps=8,
             gradient_checkpointing=True,
             max_steps=500,
