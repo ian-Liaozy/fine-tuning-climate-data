@@ -77,9 +77,10 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
         mesh = init_device_mesh("cuda", [world_size])
 
-        
+        plan = parallelize_plan(model, mesh)
+
         # Parallelize only parts that match the TP spec
-        model.model = parallelize_module(model.model, mesh, sharders=[LLamaSharder()])
+        model.model = parallelize_module(model.model, mesh, parallelize_plan=plan)
 
         return model, tokenizer
 
