@@ -197,7 +197,7 @@ def main():
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,
-        fp16=False,
+        fp16=True,
         bf16=False,
         optim="adamw_bnb_8bit",
         save_total_limit=2,
