@@ -10,6 +10,7 @@ from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoin
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 
 def setup_distributed(local_rank=None):
@@ -156,6 +157,18 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
             use_cache=False
         )
         # model = model.cuda(local_rank)
+        model = prepare_model_for_kbit_training(model)
+
+        # Add LoRA adapters
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=32,
+            target_modules=["q_proj", "v_proj"],  # For LLaMA model
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM"
+        )
+        model = get_peft_model(model, lora_config)
         return model, tokenizer
 
 def tokenize_function(tokenizer, examples):
@@ -307,7 +320,7 @@ def main():
         )
         trainer.train()
 
-        trainer.save_model("./checkpoints/final_dist_model")
+        # trainer.save_model("./checkpoints/final_dist_model")
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
 
