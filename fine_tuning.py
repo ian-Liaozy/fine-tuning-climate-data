@@ -19,7 +19,7 @@ def setup_distributed():
     
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
-    return rank, world_size
+    return rank
 
 def patch_rotary_emb(model):
     # Iterate over each transformer layer in the model.
@@ -50,8 +50,7 @@ def patch_rotary_emb(model):
 
 
 def get_model(model_name, parallel_mode="none", devices=None):
-    # world_size = dist.get_world_size()
-    rank, world_size = setup_distributed()
+    rank = setup_distributed()
 
 
     # Use your own tokenizer
@@ -302,16 +301,48 @@ def main():
                 _ = schedule.step()
             break  # Process one batch for demonstration.
     else:
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=small_eval_dataset,
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=4,
+            shuffle=True
         )
-        trainer.train()
-        trainer.save_model("./checkpoints/final_dist_model")
-        tokenizer.save_pretrained("./checkpoints/final_dist_model")
-        print("Training complete and model saved.")
+        
+        if rank == 0:
+            print(f"Data loader created, batch count: {len(train_loader)}")
+        
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.01)
+        
+        print(f"Rank {rank}: Starting training")
+        
+        for epoch in range(20):
+            model.train()
+            
+            
+            for step, batch in enumerate(train_loader):
+                input_ids = batch['input_ids'].to(device)
+                labels = batch['labels'].to(device)
+                
+                outputs = model(input_ids, labels=labels)
+                loss = outputs.loss
+                
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
+                if step % 10 == 0 and rank == 0:
+                    print(f"Epoch {epoch}, Step {step}, Loss: {loss.item():.4f}")
+            
+        
+        # trainer = Trainer(
+        #     model=model,
+        #     args=training_args,
+        #     train_dataset=train_dataset,
+        #     eval_dataset=small_eval_dataset,
+        # )
+        # trainer.train()
+        # trainer.save_model("./checkpoints/final_dist_model")
+        # tokenizer.save_pretrained("./checkpoints/final_dist_model")
+        # print("Training complete and model saved.")
 
     if dist.is_initialized():
         dist.destroy_process_group()
