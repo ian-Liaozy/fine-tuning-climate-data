@@ -1,34 +1,37 @@
 {
-    "train_batch_size": 2,
-    "train_micro_batch_size_per_gpu": 2,
-    "gradient_accumulation_steps": 4,
+    "train_batch_size": "auto",
+    "gradient_accumulation_steps": "auto",
     "optimizer": {
       "type": "AdamW",
       "params": {
         "lr": 5e-5,
         "betas": [0.9, 0.999],
         "eps": 1e-8,
-        "weight_decay": 0.01
+        "weight_decay": "auto"
       }
     },
-    
-    "tensor_parallel": {
-      "enabled": true,
-      "tp_size": 2
+    "fp16": {
+      "enabled": "auto"
     },
     "zero_optimization": {
-        "stage": 2,
-        "offload_optimizer": {
+      "stage": 2,
+      "offload_optimizer": {
         "device": "none"
-        },
-        "allgather_partitions": true,
-        "allgather_bucket_size": 2e8,
-        "reduce_scatter": true,
-        "reduce_bucket_size": 2e8,
-        "overlap_comm": true,
-        "contiguous_gradients": true
+      },
+      "allgather_partitions": true,
+      "reduce_scatter": true,
+      "allgather_bucket_size": 2e8,
+      "overlap_comm": true,
+      "contiguous_gradients": true
     },
-    "fp16": {
-      "enabled": true
-    }
+    "aio": {
+      "block_size": 1048576,
+      "queue_depth": 8,
+      "single_submit": false,
+      "overlap_events": true,
+      "thread_count": 1
+    },
+    "steps_per_print": 100,
+    "wall_clock_breakdown": false
   }
+  
