@@ -147,13 +147,13 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         return stage, tokenizer
 
     else:
-        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
         # model = model.cuda(local_rank)
         return model, tokenizer
 
 def tokenize_function(tokenizer, examples):
     tokenized_inputs = tokenizer(
-        examples["text"], truncation=True, padding="max_length", max_length=128
+        examples["text"], truncation=True, padding="max_length", max_length=42
     )
     tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
     return tokenized_inputs
