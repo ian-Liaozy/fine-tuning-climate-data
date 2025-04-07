@@ -11,7 +11,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingA
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
-
+import deepspeed
 
 def setup_distributed(local_rank=None):
     if dist.is_initialized():
@@ -154,8 +154,15 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
             model_name,
             quantization_config=bnb_config,
             device_map=None,  # Explicitly set to None
-            use_cache=False
+            use_cache=False,
+            torch_dtype=torch.float16
         ).to(f"cuda:{local_rank}")
+
+        model = deepspeed.initialize(
+            model=model,
+            config="ds_config.json",
+            model_parameters=model.parameters()
+        )[0]
         # model = model.cuda(local_rank)
         model = prepare_model_for_kbit_training(model)
 
@@ -311,6 +318,8 @@ def main():
 
             ddp_find_unused_parameters=False,
             deepspeed="ds_config.json",
+
+            label_names=["labels"],
             
         )
         trainer = Trainer(
