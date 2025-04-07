@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.distributed as dist
 import argparse
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module, LLamaSharder
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
@@ -75,21 +75,11 @@ def get_model(model_name, parallel_mode="none", devices=None):
         model = AutoModelForCausalLM.from_pretrained(model_name)
         model = model.cuda(rank)
 
-        mesh = init_device_mesh("cuda", (world_size,))
+        mesh = init_device_mesh("cuda", [world_size])
 
-        def llama_tp_spec(module_name, module):
-            if "self_attn.q_proj" in module_name or "self_attn.k_proj" in module_name or "self_attn.v_proj" in module_name:
-                return ColwiseParallel()
-            elif "self_attn.o_proj" in module_name:
-                return RowwiseParallel()
-            elif "mlp.fc1" in module_name:
-                return ColwiseParallel()
-            elif "mlp.fc2" in module_name:
-                return RowwiseParallel()
-            return None
-
+        
         # Parallelize only parts that match the TP spec
-        model.model = parallelize_module(model.model, mesh, spec=llama_tp_spec)
+        model.model = parallelize_module(model.model, mesh, sharders=[LLamaSharder()]
 
         return model, tokenizer
 
@@ -235,7 +225,7 @@ def main():
             else:
                 _ = schedule.step()
             break  # Process one batch for demonstration.
-    else:
+    elif args.parallel_mode == "tensor":
         # trainer = Trainer(
         #     model=model,
         #     args=training_args,
@@ -264,6 +254,18 @@ def main():
                 optimizer.step()
 
         # trainer.save_model("./checkpoints/final_dist_model")
+        tokenizer.save_pretrained("./checkpoints/final_dist_model")
+        print("Training complete and model saved.")
+    else:
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=small_eval_dataset,
+        )
+        trainer.train()
+
+        trainer.save_model("./checkpoints/final_dist_model")
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
 
