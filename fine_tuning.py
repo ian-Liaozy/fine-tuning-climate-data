@@ -268,29 +268,29 @@ def main():
         print("Training complete and model saved.")
     else:
         training_args = TrainingArguments(
-        output_dir="./checkpoints",
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=8,
-        max_steps=500,
+            output_dir="./checkpoints",
+            per_device_train_batch_size=1,
+            per_device_eval_batch_size=1,
+            gradient_accumulation_steps=8,
+            max_steps=500,
 
-        fp16=True,  # must match ds_config
-        bf16=False,
+            fp16=True,  # must match ds_config
+            bf16=False,
 
-        logging_steps=100,
-        save_steps=200,
-        eval_steps=200,
-        evaluation_strategy="steps",
+            logging_steps=100,
+            save_steps=200,
+            eval_steps=200,
+            evaluation_strategy="steps",
 
-        save_total_limit=2,
-        report_to="none",
-        remove_unused_columns=False,
-        save_safetensors=False,
+            save_total_limit=2,
+            report_to="none",
+            remove_unused_columns=False,
+            save_safetensors=False,
 
-        ddp_find_unused_parameters=False,
-        deepspeed="ds_config.json",
-        gradient_checkpointing=True
-    )
+            ddp_find_unused_parameters=False,
+            deepspeed="ds_config.json",
+            gradient_checkpointing=True
+        )
         trainer = Trainer(
             model=model,
             args=training_args,
