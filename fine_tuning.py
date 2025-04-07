@@ -222,9 +222,11 @@ def main():
         ddp_find_unused_parameters=False,
     )
 
+    device = torch.device(f"cuda:{rank}")
+
     if args.parallel_mode == "pipeline":
         rank = dist.get_rank()
-        device = torch.device(f"cuda:{rank}")
+        
         schedule = ScheduleGPipe(model, n_microbatches=4)
 
         # Create a DataLoader from the train_dataset.
@@ -254,7 +256,7 @@ def main():
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
         num_epochs = 20
 
-        for epoch in range(num_epochs):
+        for _ in range(num_epochs):
             for batch in train_loader:
                 input_ids = batch["input_ids"].to(device)
                 labels = batch["labels"].to(device)
