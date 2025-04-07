@@ -9,7 +9,7 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining import PipelineStage, ScheduleGPipe, SplitPoint
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, BitsAndBytesConfig
 from datasets import load_dataset
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 def setup_distributed():
     if dist.is_initialized():
@@ -20,7 +20,7 @@ def setup_distributed():
     
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
-    return rank
+    return rank, world_size
 
 def patch_rotary_emb(model):
     # Iterate over each transformer layer in the model.
@@ -51,114 +51,44 @@ def patch_rotary_emb(model):
 
 
 def get_model(model_name, parallel_mode="none", devices=None):
-    rank = setup_distributed()
+    rank, world_size = setup_distributed()
 
 
+    # Use your own tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+    )
+
     if parallel_mode == "data":
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
-        )
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config, use_cache=False)
         model = DDP(model, device_ids=[rank])
         return model, tokenizer
 
     elif parallel_mode == "tensor":
-        class AllGatherFunction(torch.autograd.Function):
-            @staticmethod
-            def forward(ctx, input_tensor, world_size):
-                ctx.world_size = world_size
-                ctx.input_shape = input_tensor.shape
-                
-                output = [torch.zeros_like(input_tensor) for _ in range(world_size)]
-                dist.all_gather(output, input_tensor)
-                
-                return torch.cat(output, dim=-1)
-            
-            @staticmethod
-            def backward(ctx, grad_output):
-                world_size = ctx.world_size
-                input_shape = ctx.input_shape
-                
-                dim_size = grad_output.size(-1) // world_size
-                
-                rank = dist.get_rank()
-                grad_slice = grad_output.narrow(-1, rank * dim_size, dim_size)
-                
-                return grad_slice, None
-
-        def all_gather_with_grad(tensor, world_size=None):
-            if world_size is None:
-                world_size = dist.get_world_size()
-                
-            return AllGatherFunction.apply(tensor, world_size)
-        class TPLinear(nn.Module):
-            def __init__(self, in_features, out_features, bias=True):
-                super().__init__()
-                self.in_features = in_features
-                self.out_features = out_features
-                
-                self.world_size = dist.get_world_size()
-                self.rank = dist.get_rank()
-                
-                self.out_features_per_gpu = out_features // self.world_size
-                
-                self.linear = nn.Linear(in_features, self.out_features_per_gpu, bias=bias)
-            
-            def forward(self, x):
-                local_output = self.linear(x)
-                
-                return all_gather_with_grad(local_output)
-        class TPLlamaModel(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.embeddings = nn.Embedding(32000, 768)
-                
-                self.layers = nn.ModuleList([
-                    TPLinear(768, 768) for _ in range(6)
-                ])
-                
-                self.lm_head = TPLinear(768, 32000)
-            
-            def forward(self, input_ids, labels=None):
-                x = self.embeddings(input_ids)
-                for layer in self.layers:
-                    x = nn.functional.gelu(layer(x))
-                logits = self.lm_head(x)
-                
-                loss = None
-                if labels is not None:
-                    loss_fct = nn.CrossEntropyLoss()
-                    loss = loss_fct(logits.view(-1, 32000), labels.view(-1))
-                
-                return type('Output', (), {'loss': loss, 'logits': logits})()
-        # model = AutoModelForCausalLM.from_pretrained(model_name)
-        # model = model.cuda(rank)
-        # tp_mesh = DeviceMesh("cuda", list(range(world_size)))
-        # for name, module in model.named_modules():
-        #     if hasattr(module, "self_attn") and hasattr(module, "mlp"):
-        #         try:
-        #             ColwiseParallel(module.self_attn.q_proj, tp_mesh)
-        #             ColwiseParallel(module.self_attn.k_proj, tp_mesh)
-        #             ColwiseParallel(module.self_attn.v_proj, tp_mesh)
-        #             RowwiseParallel(module.self_attn.out_proj, tp_mesh)
-        #             ColwiseParallel(module.mlp.fc1, tp_mesh)
-        #             RowwiseParallel(module.mlp.fc2, tp_mesh)
-        #             print(f"[TP] Applied tensor parallel to {name}")
-        #         except Exception as e:
-        #             print(f"[TP] Skipped {name} due to: {e}")
-        # return model, tokenizer
-        
-        device = torch.device("cuda", rank)
-        model = TPLlamaModel().to(device)
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = model.cuda(rank)
+        tp_mesh = DeviceMesh("cuda", list(range(world_size)))
+        for name, module in model.named_modules():
+            if hasattr(module, "self_attn") and hasattr(module, "mlp"):
+                try:
+                    ColwiseParallel(module.self_attn.q_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.k_proj, tp_mesh)
+                    ColwiseParallel(module.self_attn.v_proj, tp_mesh)
+                    RowwiseParallel(module.self_attn.out_proj, tp_mesh)
+                    ColwiseParallel(module.mlp.fc1, tp_mesh)
+                    RowwiseParallel(module.mlp.fc2, tp_mesh)
+                    print(f"[TP] Applied tensor parallel to {name}")
+                except Exception as e:
+                    print(f"[TP] Skipped {name} due to: {e}")
 
         return model, tokenizer
+
     elif parallel_mode == "pipeline":
         model = AutoModelForCausalLM.from_pretrained(model_name)
         # Patch the rotary embedding to avoid None returns.
@@ -224,28 +154,10 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
 def tokenize_function(tokenizer, examples):
     tokenized_inputs = tokenizer(
-        examples["text"], truncation=True, padding="max_length", max_length=42
+        examples["text"], truncation=True, padding="max_length", max_length=128
     )
     tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
     return tokenized_inputs
-
-def tokenize_text(text, max_length=128):
-    tokens = [ord(c) % 32000 for c in text[:max_length]]
-    return {
-        'input_ids': torch.tensor(tokens, dtype=torch.long),
-        'labels': torch.tensor(tokens, dtype=torch.long)
-    }
-
-class TextDataset(Dataset):
-    def __init__(self, texts, max_length=128):
-        self.texts = texts
-        self.max_length = max_length
-        
-    def __len__(self):
-        return len(self.texts)
-        
-    def __getitem__(self, idx):
-        return tokenize_text(self.texts[idx], self.max_length)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -264,23 +176,19 @@ def main():
 
     model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode)
 
-    # tokenized_datasets = dataset.map(
-    #     lambda examples: tokenize_function(tokenizer, examples),
-    #     batched=True,
-    #     load_from_cache_file=True,
-    #     num_proc=1
-    # )
-
-    train_dataset = TextDataset(dataset["train"]["text"])
-    test_dataset = TextDataset(dataset["test"]["text"])
-
-    # train_dataset = tokenized_datasets["train"]
-    # test_dataset = tokenized_datasets["test"]
-    # small_eval_dataset = test_dataset.select(range(500))
+    tokenized_datasets = dataset.map(
+        lambda examples: tokenize_function(tokenizer, examples),
+        batched=True,
+        load_from_cache_file=True,
+        num_proc=1
+    )
+    train_dataset = tokenized_datasets["train"]
+    test_dataset = tokenized_datasets["test"]
+    small_eval_dataset = test_dataset.select(range(500))
 
     # Set dataset format to return PyTorch tensors.
-    # train_dataset.set_format("torch", columns=["input_ids", "labels"])
-    # test_dataset.set_format("torch", columns=["input_ids", "labels"])
+    train_dataset.set_format("torch", columns=["input_ids", "labels"])
+    test_dataset.set_format("torch", columns=["input_ids", "labels"])
 
     training_args = TrainingArguments(
         per_device_train_batch_size=2,
@@ -304,12 +212,10 @@ def main():
         save_safetensors=False,
         ddp_find_unused_parameters=False,
     )
-    rank = dist.get_rank()
-    device = torch.device(f"cuda:{rank}")
 
     if args.parallel_mode == "pipeline":
-        
-        
+        rank = dist.get_rank()
+        device = torch.device(f"cuda:{rank}")
         schedule = ScheduleGPipe(model, n_microbatches=4)
 
         # Create a DataLoader from the train_dataset.
@@ -324,47 +230,16 @@ def main():
                 _ = schedule.step()
             break  # Process one batch for demonstration.
     else:
-        train_loader = DataLoader(
-            train_dataset, 
-            batch_size=4,
-            shuffle=True
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=small_eval_dataset,
         )
-        
-        if rank == 0:
-            print(f"Data loader created, batch count: {len(train_loader)}")
-        
-        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.01)
-        
-        print(f"Rank {rank}: Starting training")
-        
-        for epoch in range(20):
-            model.train()
-            
-            for step, batch in enumerate(train_loader):
-                input_ids = batch['input_ids'].to(device)
-                labels = batch['labels'].to(device)
-                
-                outputs = model(input_ids, labels=labels)
-                loss = outputs.loss
-                
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
-                if step % 10 == 0 and rank == 0:
-                    print(f"Epoch {epoch}, Step {step}, Loss: {loss.item():.4f}")
-            
-        
-        # trainer = Trainer(
-        #     model=model,
-        #     args=training_args,
-        #     train_dataset=train_dataset,
-        #     eval_dataset=small_eval_dataset,
-        # )
-        # trainer.train()
-        # trainer.save_model("./checkpoints/final_dist_model")
-        # tokenizer.save_pretrained("./checkpoints/final_dist_model")
-        # print("Training complete and model saved.")
+        trainer.train()
+        trainer.save_model("./checkpoints/final_dist_model")
+        tokenizer.save_pretrained("./checkpoints/final_dist_model")
+        print("Training complete and model saved.")
 
     if dist.is_initialized():
         dist.destroy_process_group()
