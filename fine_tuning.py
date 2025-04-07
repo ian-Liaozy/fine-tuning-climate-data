@@ -196,7 +196,7 @@ def main():
         dataloader_num_workers=4,
         output_dir="./checkpoints/",
         warmup_steps=5,
-        max_steps=500,
+        max_steps=25,
         eval_strategy="steps",
         eval_steps=25,
         save_steps=25,
