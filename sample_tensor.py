@@ -84,8 +84,8 @@ class TPLlamaModel(nn.Module):
 
 def extract_text_from_files(data_dir, train_split=0.9, max_files=None):
     # all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.txt')]
-    train_files = [os.path.join(data_dir+"/train", f) for f in os.listdir(data_dir) if f.endswith('.txt')]
-    test_files = [os.path.join(data_dir+"/test", f) for f in os.listdir(data_dir) if f.endswith('.txt')]
+    train_files = [os.path.join(data_dir+"/train", f) for f in os.listdir(data_dir+"/train") if f.endswith('.txt')]
+    test_files = [os.path.join(data_dir+"/test", f) for f in os.listdir(data_dir+"/test") if f.endswith('.txt')]
     # random.shuffle(all_files)
     # split_idx = int(len(all_files) * train_split)
     # train_files = all_files[:split_idx]
