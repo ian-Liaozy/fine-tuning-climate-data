@@ -239,14 +239,34 @@ def main():
                 _ = schedule.step()
             break  # Process one batch for demonstration.
     else:
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=small_eval_dataset,
+        # trainer = Trainer(
+        #     model=model,
+        #     args=training_args,
+        #     train_dataset=train_dataset,
+        #     eval_dataset=small_eval_dataset,
+        # )
+        # trainer.train()
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=4,
+            shuffle=True
         )
-        trainer.train()
-        trainer.save_model("./checkpoints/final_dist_model")
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+        num_epochs = 20
+
+        for epoch in range(num_epochs):
+            for batch in train_loader:
+                input_ids = batch["input_ids"].to(device)
+                labels = batch["labels"].to(device)
+
+                outputs = model(input_ids, labels=labels)
+                loss = outputs.loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        # trainer.save_model("./checkpoints/final_dist_model")
         tokenizer.save_pretrained("./checkpoints/final_dist_model")
         print("Training complete and model saved.")
 
