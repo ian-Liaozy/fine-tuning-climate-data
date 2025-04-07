@@ -229,6 +229,24 @@ def tokenize_function(tokenizer, examples):
     tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
     return tokenized_inputs
 
+def tokenize_text(text, max_length=128):
+    tokens = [ord(c) % 32000 for c in text[:max_length]]
+    return {
+        'input_ids': torch.tensor(tokens, dtype=torch.long),
+        'labels': torch.tensor(tokens, dtype=torch.long)
+    }
+
+class TextDataset(Dataset):
+    def __init__(self, texts, max_length=128):
+        self.texts = texts
+        self.max_length = max_length
+        
+    def __len__(self):
+        return len(self.texts)
+        
+    def __getitem__(self, idx):
+        return tokenize_text(self.texts[idx], self.max_length)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel-mode", type=str, default="none",
@@ -246,14 +264,18 @@ def main():
 
     model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode)
 
-    tokenized_datasets = dataset.map(
-        lambda examples: tokenize_function(tokenizer, examples),
-        batched=True,
-        load_from_cache_file=False,
-        num_proc=1
-    )
-    train_dataset = tokenized_datasets["train"]
-    test_dataset = tokenized_datasets["test"]
+    # tokenized_datasets = dataset.map(
+    #     lambda examples: tokenize_function(tokenizer, examples),
+    #     batched=True,
+    #     load_from_cache_file=True,
+    #     num_proc=1
+    # )
+
+    train_dataset = TextDataset(dataset["train"]["text"])
+    test_dataset = TextDataset(dataset["test"]["text"])
+
+    # train_dataset = tokenized_datasets["train"]
+    # test_dataset = tokenized_datasets["test"]
     small_eval_dataset = test_dataset.select(range(500))
 
     # Set dataset format to return PyTorch tensors.
