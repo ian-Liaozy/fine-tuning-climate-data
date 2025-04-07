@@ -79,7 +79,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
 
         
         # Parallelize only parts that match the TP spec
-        model.model = parallelize_module(model.model, mesh, sharders=[LLamaSharder()]
+        model.model = parallelize_module(model.model, mesh, sharders=[LLamaSharder()])
 
         return model, tokenizer
 
