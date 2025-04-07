@@ -48,6 +48,7 @@ def patch_rotary_emb(model):
 
 def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
+    torch.cuda.set_device(rank)
     world_size = dist.get_world_size()
 
     # Use your own tokenizer
@@ -151,7 +152,7 @@ def get_model(model_name, parallel_mode="none", devices=None):
         #         except Exception as e:
         #             print(f"[TP] Skipped {name} due to: {e}")
         # return model, tokenizer
-        torch.cuda.set_device(rank)
+        
         device = torch.device("cuda", rank)
         model = TPLlamaModel().to(device)
 
