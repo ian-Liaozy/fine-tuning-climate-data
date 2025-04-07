@@ -31,8 +31,4 @@
   "steps_per_print": 50,
   "wall_clock_breakdown": false,
 
-  "tensor_parallel": {
-    "enabled": true,
-    "tp_size": 2
-  }
 }
