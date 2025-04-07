@@ -158,11 +158,6 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
             torch_dtype=torch.float16
         ).to(f"cuda:{local_rank}")
 
-        model = deepspeed.initialize(
-            model=model,
-            config="ds_config.json",
-            model_parameters=model.parameters()
-        )[0]
         # model = model.cuda(local_rank)
         model = prepare_model_for_kbit_training(model)
 
