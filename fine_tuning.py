@@ -54,18 +54,17 @@ def get_model(model_name, parallel_mode="none", devices=None):
     rank = setup_distributed()
 
 
-    # Use your own tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-    )
-
+    
     if parallel_mode == "data":
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+        )
         model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config, use_cache=False)
         model = DDP(model, device_ids=[rank])
         return model, tokenizer
@@ -250,7 +249,7 @@ def main():
     tokenized_datasets = dataset.map(
         lambda examples: tokenize_function(tokenizer, examples),
         batched=True,
-        load_from_cache_file=True,
+        load_from_cache_file=False,
         num_proc=1
     )
     train_dataset = tokenized_datasets["train"]
@@ -318,7 +317,6 @@ def main():
         
         for epoch in range(20):
             model.train()
-            
             
             for step, batch in enumerate(train_loader):
                 input_ids = batch['input_ids'].to(device)
