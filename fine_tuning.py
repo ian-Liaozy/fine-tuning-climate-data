@@ -84,9 +84,28 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         mesh = init_device_mesh("cuda", [world_size])
 
 
-        # Parallelize only parts that match the TP spec
-        model.model = parallelize_module(model.model, mesh, {"w1": ColwiseParallel(), "w2": RowwiseParallel()})
+        parallelize_plan = {
+            "model.layers.self_attn.q_proj": ColwiseParallel(),
+            "model.layers.self_attn.k_proj": ColwiseParallel(),
+            "model.layers.self_attn.v_proj": ColwiseParallel(),
+            "model.layers.self_attn.o_proj": RowwiseParallel(),
+            "model.layers.mlp.gate_proj": ColwiseParallel(),
+            "model.layers.mlp.up_proj": ColwiseParallel(),
+            "model.layers.mlp.down_proj": RowwiseParallel(),
+        }
+    
+        model = parallelize_module(model, mesh, parallelize_plan)
+        model = model.to(f"cuda:{local_rank}")
 
+        model = prepare_model_for_kbit_training(model)
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=16,
+            target_modules=["q_proj", "v_proj"], 
+            lora_dropout=0.1,
+            task_type=TaskType.CAUSAL_LM,
+        )
+        model = get_peft_model(model, lora_config)
         return model, tokenizer
 
     elif parallel_mode == "pipeline":
@@ -302,7 +321,7 @@ def main():
             logging_steps=100,
             save_steps=200,
             eval_steps=200,
-            evaluation_strategy="steps",
+            eval_strategy="steps",
 
             save_total_limit=2,
             report_to="none",
