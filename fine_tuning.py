@@ -102,31 +102,21 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         return model, tokenizer
 
     elif parallel_mode == "pipeline":
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-        model = model.cuda(rank)
-
-        mesh = init_device_mesh("cuda", [world_size])
-
-
-        parallelize_plan = {
-            "model.layers.self_attn.q_proj": ColwiseParallel(),
-            "model.layers.self_attn.k_proj": ColwiseParallel(),
-            "model.layers.self_attn.v_proj": ColwiseParallel(),
-            "model.layers.self_attn.o_proj": RowwiseParallel(),
-            "model.layers.mlp.gate_proj": ColwiseParallel(),
-            "model.layers.mlp.up_proj": ColwiseParallel(),
-            "model.layers.mlp.down_proj": RowwiseParallel(),
-        }
-    
-        model = parallelize_module(model, mesh, parallelize_plan)
-        model = model.to(f"cuda:{local_rank}")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            device_map=None,
+            use_cache=False,
+            torch_dtype=torch.float16,
+        ).to(f"cuda:{local_rank}")
 
         model = prepare_model_for_kbit_training(model)
+
         lora_config = LoraConfig(
             r=8,
             lora_alpha=16,
-            target_modules=["q_proj", "v_proj"], 
             lora_dropout=0.1,
+            bias="none",
             task_type=TaskType.CAUSAL_LM,
         )
         model = get_peft_model(model, lora_config)
@@ -199,6 +189,16 @@ def main():
     train_dataset.set_format("torch", columns=["input_ids", "labels"])
     test_dataset.set_format("torch", columns=["input_ids", "labels"])
 
+    if args.parallel_mode == "pipeline":
+        ds_config_name = "ds_config_pipeline.json"
+    elif args.parallel_mode == "tensor":
+        ds_config_name = "ds_config_tensor.json"
+    elif args.parallel_mode == "data":
+        ds_config_name = "ds_config_data.json"
+    elif args.parallel_mode == "none":
+        ds_config_name = "ds_config_base.json"
+    else:
+        ds_config_name = "ds_config.json"
     training_args = TrainingArguments(
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -220,68 +220,23 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
-        deepspeed="ds_config.json"
+        deepspeed=ds_config_name,
+        label_names=["labels"]
     )
     rank = dist.get_rank()
     device = torch.device(f"cuda:{rank}")
 
-    if args.parallel_mode == "pipeline":
-        
-        
-        schedule = ScheduleGPipe(model, n_microbatches=4)
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=small_eval_dataset,
+    )
+    trainer.train()
 
-        # Create a DataLoader from the train_dataset.
-        train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-        for batch in train_dataloader:
-            input_ids = batch["input_ids"].to(device)
-            position_ids = torch.arange(input_ids.shape[1], device=device).unsqueeze(0).expand(input_ids.shape[0], -1)
-            if rank == 0:
-                outputs = schedule.step(input_ids, position_ids=position_ids)
-                print("Pipeline output shape:", outputs[0].shape)
-            else:
-                _ = schedule.step()
-            break  # Process one batch for demonstration.
-    else:
-        # deepspeed (tensor parallel)
-        training_args = TrainingArguments(
-            output_dir="./checkpoints",
-            per_device_train_batch_size=4,
-            gradient_accumulation_steps=4,
-            gradient_checkpointing=False,
-            max_steps=500,
-
-            fp16=True,  # must match ds_config
-            bf16=False,
-
-            logging_steps=100,
-            save_steps=200,
-            eval_steps=200,
-            eval_strategy="steps",
-
-            save_total_limit=2,
-            report_to="none",
-            remove_unused_columns=False,
-            save_safetensors=False,
-            dataloader_num_workers=8,
-            dataloader_pin_memory=True,
-
-            ddp_find_unused_parameters=False,
-            deepspeed="ds_config.json",
-
-            label_names=["labels"],
-            
-        )
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=small_eval_dataset,
-        )
-        trainer.train()
-
-        # trainer.save_model("./checkpoints/final_dist_model")
-        tokenizer.save_pretrained("./checkpoints/final_dist_model")
-        print("Training complete and model saved.")
+    # trainer.save_model("./checkpoints/final_dist_model")
+    tokenizer.save_pretrained("./checkpoints/final_dist_model")
+    print("Training complete and model saved.")
 
     if dist.is_initialized():
         dist.destroy_process_group()
