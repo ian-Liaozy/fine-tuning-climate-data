@@ -240,6 +240,14 @@ def main():
         deepspeed=ds_config_name,
         label_names=["labels"]
     )
+    tokenized_datasets = dataset.map(
+        lambda examples: tokenize_function(tokenizer, examples),
+        batched=True,
+        load_from_cache_file=True,
+        num_proc=1
+    )
+    train_dataset = tokenized_datasets["train"]
+    test_dataset = tokenized_datasets["test"]
     small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
@@ -258,14 +266,7 @@ def main():
             dist.destroy_process_group()
         return
 
-    tokenized_datasets = dataset.map(
-        lambda examples: tokenize_function(tokenizer, examples),
-        batched=True,
-        load_from_cache_file=True,
-        num_proc=1
-    )
-    train_dataset = tokenized_datasets["train"]
-    test_dataset = tokenized_datasets["test"]
+    
 
     # Set dataset format to return PyTorch tensors.
     train_dataset.set_format("torch", columns=["input_ids", "labels"])
