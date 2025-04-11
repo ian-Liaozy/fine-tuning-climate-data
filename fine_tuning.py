@@ -251,10 +251,13 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
+        MODEL_PATH = "./checkpoints/final_dist_model"
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto", load_in_4bit=True)
         trainer = Trainer(
             model=model,
             args=training_args,
-            eval_dataset=small_eval_dataset,
+            eval_dataset=test_dataset,
         )
         metrics = trainer.evaluate()
         eval_loss = metrics["eval_loss"]
@@ -283,9 +286,6 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
-    metrics = trainer.evaluate(eval_dataset=test_dataset)  
-    perplexity = torch.exp(torch.tensor(metrics["eval_loss"]))
-    print(f"[Final Eval] Loss: {metrics['eval_loss']:.4f} | Perplexity: {perplexity.item():.2f}")
 
     trainer.save_model("./checkpoints/final_dist_model")
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
