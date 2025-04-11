@@ -238,7 +238,6 @@ def main():
         save_safetensors=False,
         ddp_find_unused_parameters=False,
         deepspeed=ds_config_name,
-        deepspeed_inference=False,
         label_names=["labels"]
     )
     tokenized_datasets = dataset.map(
@@ -257,6 +256,8 @@ def main():
             args=training_args,
             eval_dataset=small_eval_dataset,
         )
+        if hasattr(trainer, "args") and hasattr(trainer.args, "deepspeed") and trainer.args.deepspeed:
+            trainer.deepspeed = None
         metrics = trainer.evaluate()
         eval_loss = metrics["eval_loss"]
         perplexity = math.exp(eval_loss)
