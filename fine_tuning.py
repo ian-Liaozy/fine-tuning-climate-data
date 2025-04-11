@@ -251,7 +251,7 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
-        MODEL_PATH = "./checkpoints/final_dist_model"
+        MODEL_PATH = "./checkpoints/final_dist_model_" + args.parallel_mode
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map=None, load_in_4bit=True)
         eval_args = TrainingArguments(
@@ -296,8 +296,8 @@ def main():
     )
     trainer.train()
 
-    trainer.save_model("./checkpoints/final_dist_model")
-    tokenizer.save_pretrained("./checkpoints/final_dist_model")
+    trainer.save_model("./checkpoints/final_dist_model_" + args.parallel_mode)
+    tokenizer.save_pretrained("./checkpoints/final_dist_model_" + args.parallel_mode)
     print("Training complete and model saved.")
 
     if dist.is_initialized():
