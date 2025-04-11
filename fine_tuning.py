@@ -238,6 +238,7 @@ def main():
         save_safetensors=False,
         ddp_find_unused_parameters=False,
         deepspeed=ds_config_name,
+        deepspeed_inference=False,
         label_names=["labels"]
     )
     tokenized_datasets = dataset.map(
