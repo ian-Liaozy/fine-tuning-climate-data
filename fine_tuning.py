@@ -12,6 +12,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 import deepspeed
+import math
 
 def setup_distributed(local_rank=None):
     if dist.is_initialized():
@@ -186,6 +187,7 @@ def tokenize_function(tokenizer, examples):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--do-eval-only", action="store_true", help="Only run evaluation and report perplexity")
     parser.add_argument("--parallel-mode", type=str, default="none",
                         choices=["none", "data", "tensor", "pipeline", "mixed"],)
     parser.add_argument("--local_rank", type=int, default=-1, help="Local rank passed by DeepSpeed")
@@ -201,22 +203,6 @@ def main():
     })
 
     model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode, local_rank=args.local_rank)
-
-
-    tokenized_datasets = dataset.map(
-        lambda examples: tokenize_function(tokenizer, examples),
-        batched=True,
-        load_from_cache_file=True,
-        num_proc=1
-    )
-    train_dataset = tokenized_datasets["train"]
-    test_dataset = tokenized_datasets["test"]
-    small_eval_dataset = test_dataset.select(range(500))
-
-    # Set dataset format to return PyTorch tensors.
-    train_dataset.set_format("torch", columns=["input_ids", "labels"])
-    test_dataset.set_format("torch", columns=["input_ids", "labels"])
-
     if args.parallel_mode == "pipeline":
         ds_config_name = "ds_config_pipeline.json"
     elif args.parallel_mode == "tensor":
@@ -229,6 +215,7 @@ def main():
         ds_config_name = "ds_config.json"
     else:
         raise ValueError(f"Unknown parallel mode: {args.parallel_mode}")
+    
     training_args = TrainingArguments(
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -253,6 +240,38 @@ def main():
         deepspeed=ds_config_name,
         label_names=["labels"]
     )
+
+    if args.do_eval_only:
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            eval_dataset=small_eval_dataset,
+        )
+        metrics = trainer.evaluate()
+        eval_loss = metrics["eval_loss"]
+        perplexity = math.exp(eval_loss)
+        print(f"\n==== Evaluation Results ====")
+        print(f"Eval loss: {eval_loss:.4f}")
+        print(f"Perplexity: {perplexity:.2f}")
+        if dist.is_initialized():
+            dist.destroy_process_group()
+        return
+
+    tokenized_datasets = dataset.map(
+        lambda examples: tokenize_function(tokenizer, examples),
+        batched=True,
+        load_from_cache_file=True,
+        num_proc=1
+    )
+    train_dataset = tokenized_datasets["train"]
+    test_dataset = tokenized_datasets["test"]
+    small_eval_dataset = test_dataset.select(range(500))
+
+    # Set dataset format to return PyTorch tensors.
+    train_dataset.set_format("torch", columns=["input_ids", "labels"])
+    test_dataset.set_format("torch", columns=["input_ids", "labels"])
+
+    
     # rank = dist.get_rank()
     # device = torch.device(f"cuda:{rank}")
 
