@@ -10,10 +10,6 @@
     },
     "fp16": {
       "enabled": true
-    },
-    "tensor_parallel": {
-      "tp_size": 2,
-      "tp_mode": "horizontal"
     }
   }
   
