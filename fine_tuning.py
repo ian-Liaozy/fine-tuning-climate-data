@@ -217,8 +217,8 @@ def main():
         raise ValueError(f"Unknown parallel mode: {args.parallel_mode}")
     
     training_args = TrainingArguments(
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
@@ -253,15 +253,13 @@ def main():
     if args.do_eval_only:
         MODEL_PATH = "./checkpoints/final_dist_model_" + args.parallel_mode
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map=None, load_in_4bit=True)
+        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map=None)
         eval_args = TrainingArguments(
             output_dir="./eval_results_dist_" + args.parallel_mode,
-            per_device_eval_batch_size=4,
-            dataloader_num_workers=4,
+            per_device_eval_batch_size=16,
+            dataloader_num_workers=8,
             do_eval=True,
-            report_to="none",
-            fp16=True, 
-            bf16=False,
+            report_to="none"
         )
         trainer = Trainer(
             model=model,
@@ -274,6 +272,9 @@ def main():
         print(f"\n==== Evaluation Results ====")
         print(f"Eval loss: {eval_loss:.4f}")
         print(f"Perplexity: {perplexity:.2f}")
+        with open("eval_results" + args.parallel_mode + ".txt", "w") as f:
+            for key, value in metrics.items():
+                f.write(f"{key}: {value:.4f}\n")
         if dist.is_initialized():
             dist.destroy_process_group()
         return
