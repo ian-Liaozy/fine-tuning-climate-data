@@ -253,7 +253,7 @@ def main():
     if args.do_eval_only:
         MODEL_PATH = "./checkpoints/final_dist_model"
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto", load_in_4bit=True)
+        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="none", load_in_4bit=True)
         eval_args = TrainingArguments(
             output_dir="./eval_results_dist",
             per_device_eval_batch_size=4,
