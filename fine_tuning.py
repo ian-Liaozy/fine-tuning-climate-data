@@ -283,6 +283,9 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
+    metrics = trainer.evaluate(eval_dataset=test_dataset)  
+    perplexity = torch.exp(torch.tensor(metrics["eval_loss"]))
+    print(f"[Final Eval] Loss: {metrics['eval_loss']:.4f} | Perplexity: {perplexity.item():.2f}")
 
     trainer.save_model("./checkpoints/final_dist_model")
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
