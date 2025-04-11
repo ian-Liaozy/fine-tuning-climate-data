@@ -264,7 +264,7 @@ def main():
     )
     trainer.train()
 
-    # trainer.save_model("./checkpoints/final_dist_model")
+    trainer.save_model("./checkpoints/final_dist_model")
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
     print("Training complete and model saved.")
 
