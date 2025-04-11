@@ -284,6 +284,12 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
+    metrics = trainer.evaluate()
+    eval_loss = metrics["eval_loss"]
+    perplexity = math.exp(eval_loss)
+    print(f"\n==== Evaluation Results ====")
+    print(f"Eval loss: {eval_loss:.4f}")
+    print(f"Perplexity: {perplexity:.2f}")
 
     trainer.save_model("./checkpoints/final_dist_model")
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
