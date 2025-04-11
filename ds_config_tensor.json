@@ -12,7 +12,6 @@
       "enabled": true
     },
     "tensor_parallel": {
-      "enabled": true,
       "tp_size": 2,
       "tp_mode": "horizontal"
     }

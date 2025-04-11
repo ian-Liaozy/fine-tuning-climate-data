@@ -5,14 +5,13 @@
     "zero_optimization": {
       "stage": 2,
       "offload_optimizer": {
-        "device": "cpu"
+        "device": "none"
       }
     },
     "fp16": {
       "enabled": true
     },
     "pipeline": {
-      "enabled": true,
       "partition_method": "type:transformer",
       "activation_checkpoint_interval": 0,
       "prescale_gradients": false,

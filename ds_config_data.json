@@ -10,9 +10,6 @@
     },
     "fp16": {
       "enabled": true
-    },
-    "tensor_parallel": {
-      "enabled": false
     }
   }
   
