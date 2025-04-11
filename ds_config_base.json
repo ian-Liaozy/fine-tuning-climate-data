@@ -4,6 +4,12 @@
     "gradient_accumulation_steps": "auto",
     "fp16": {
       "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "offload_optimizer": {
+        "device": "none"
+      }
     }
   }
   
