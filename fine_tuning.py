@@ -240,6 +240,7 @@ def main():
         deepspeed=ds_config_name,
         label_names=["labels"]
     )
+    small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
         trainer = Trainer(
@@ -265,7 +266,6 @@ def main():
     )
     train_dataset = tokenized_datasets["train"]
     test_dataset = tokenized_datasets["test"]
-    small_eval_dataset = test_dataset.select(range(500))
 
     # Set dataset format to return PyTorch tensors.
     train_dataset.set_format("torch", columns=["input_ids", "labels"])
