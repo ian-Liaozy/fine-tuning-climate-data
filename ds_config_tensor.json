@@ -5,7 +5,7 @@
     "zero_optimization": {
       "stage": 2,
       "offload_optimizer": {
-        "device": "cpu"
+        "device": "none"
       }
     },
     "fp16": {
