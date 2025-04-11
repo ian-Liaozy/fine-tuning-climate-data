@@ -251,12 +251,12 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
+        training_args.deepspeed = None
         trainer = Trainer(
             model=model,
             args=training_args,
             eval_dataset=small_eval_dataset,
         )
-        trainer.deepspeed = None
         metrics = trainer.evaluate()
         eval_loss = metrics["eval_loss"]
         perplexity = math.exp(eval_loss)
