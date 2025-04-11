@@ -254,9 +254,18 @@ def main():
         MODEL_PATH = "./checkpoints/final_dist_model"
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto", load_in_4bit=True)
+        eval_args = TrainingArguments(
+            output_dir="./eval_results_dist",
+            per_device_eval_batch_size=4,
+            dataloader_num_workers=4,
+            do_eval=True,
+            report_to="none",
+            fp16=True, 
+            bf16=False,
+        )
         trainer = Trainer(
             model=model,
-            args=training_args,
+            args=eval_args,
             eval_dataset=test_dataset,
         )
         metrics = trainer.evaluate()
