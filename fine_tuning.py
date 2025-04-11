@@ -121,7 +121,37 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         )
         model = get_peft_model(model, lora_config)
         return model, tokenizer
+    elif parallel_mode == "mixed":
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = model.cuda(rank)
 
+        mesh = init_device_mesh("cuda", [world_size])
+
+
+        parallelize_plan = {
+            "model.layers.self_attn.q_proj": ColwiseParallel(),
+            "model.layers.self_attn.k_proj": ColwiseParallel(),
+            "model.layers.self_attn.v_proj": ColwiseParallel(),
+            "model.layers.self_attn.o_proj": RowwiseParallel(),
+            "model.layers.mlp.gate_proj": ColwiseParallel(),
+            "model.layers.mlp.up_proj": ColwiseParallel(),
+            "model.layers.mlp.down_proj": RowwiseParallel(),
+        }
+    
+        model = parallelize_module(model, mesh, parallelize_plan)
+        model = model.to(f"cuda:{local_rank}")
+
+        model = prepare_model_for_kbit_training(model)
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=16,
+            target_modules=["q_proj", "v_proj"], 
+            lora_dropout=0.1,
+            task_type=TaskType.CAUSAL_LM,
+        )
+        model = get_peft_model(model, lora_config)
+        model = DDP(model, device_ids=[rank])
+        return model, tokenizer
     else:
         # deepspeed
         # model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
@@ -157,7 +187,7 @@ def tokenize_function(tokenizer, examples):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel-mode", type=str, default="none",
-                        choices=["none", "data", "tensor", "pipeline"])
+                        choices=["none", "data", "tensor", "pipeline", "mixed"],)
     parser.add_argument("--local_rank", type=int, default=-1, help="Local rank passed by DeepSpeed")
     args = parser.parse_args()
 
@@ -172,8 +202,6 @@ def main():
 
     model, tokenizer = get_model(model_name, parallel_mode=args.parallel_mode, local_rank=args.local_rank)
 
-    assert model is not None, "Model was not returned from get_model()"
-    assert tokenizer is not None, "Tokenizer was not returned from get_model()"
 
     tokenized_datasets = dataset.map(
         lambda examples: tokenize_function(tokenizer, examples),
@@ -197,8 +225,10 @@ def main():
         ds_config_name = "ds_config_data.json"
     elif args.parallel_mode == "none":
         ds_config_name = "ds_config_base.json"
-    else:
+    elif args.parallel_mode == "mixed":
         ds_config_name = "ds_config.json"
+    else:
+        raise ValueError(f"Unknown parallel mode: {args.parallel_mode}")
     training_args = TrainingArguments(
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -223,8 +253,8 @@ def main():
         deepspeed=ds_config_name,
         label_names=["labels"]
     )
-    rank = dist.get_rank()
-    device = torch.device(f"cuda:{rank}")
+    # rank = dist.get_rank()
+    # device = torch.device(f"cuda:{rank}")
 
     trainer = Trainer(
         model=model,
