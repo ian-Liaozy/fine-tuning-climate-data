@@ -255,7 +255,7 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map=None, load_in_4bit=True)
         eval_args = TrainingArguments(
-            output_dir="./eval_results_dist",
+            output_dir="./eval_results_dist_" + args.parallel_mode,
             per_device_eval_batch_size=4,
             dataloader_num_workers=4,
             do_eval=True,
