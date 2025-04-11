@@ -256,8 +256,7 @@ def main():
             args=training_args,
             eval_dataset=small_eval_dataset,
         )
-        if hasattr(trainer, "args") and hasattr(trainer.args, "deepspeed") and trainer.args.deepspeed:
-            trainer.deepspeed = None
+        trainer.deepspeed = None
         metrics = trainer.evaluate()
         eval_loss = metrics["eval_loss"]
         perplexity = math.exp(eval_loss)
