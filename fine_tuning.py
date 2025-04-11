@@ -237,7 +237,7 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
-        deepspeed=ds_config_name,
+        deepspeed=ds_config_name if args.do_eval_only == None else None,
         label_names=["labels"]
     )
     tokenized_datasets = dataset.map(
@@ -251,7 +251,6 @@ def main():
     small_eval_dataset = test_dataset.select(range(500))
 
     if args.do_eval_only:
-        training_args.deepspeed = None
         trainer = Trainer(
             model=model,
             args=training_args,
@@ -284,12 +283,6 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
-    metrics = trainer.evaluate()
-    eval_loss = metrics["eval_loss"]
-    perplexity = math.exp(eval_loss)
-    print(f"\n==== Evaluation Results ====")
-    print(f"Eval loss: {eval_loss:.4f}")
-    print(f"Perplexity: {perplexity:.2f}")
 
     trainer.save_model("./checkpoints/final_dist_model")
     tokenizer.save_pretrained("./checkpoints/final_dist_model")
