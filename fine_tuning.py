@@ -315,7 +315,24 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
-    trainer.evaluate()
+    evaluate_args = TrainingArguments(
+        output_dir="./eval_results_dist_" + args.parallel_mode,
+        per_device_eval_batch_size=16,
+        dataloader_num_workers=8,
+        do_eval=True,
+        report_to="none"
+    )
+    evaluater = Trainer(
+        model=model,
+        args=evaluate_args,
+        eval_dataset=test_dataset,
+    )
+    metrics = evaluater.evaluate()
+    eval_loss = metrics["eval_loss"]
+    perplexity = math.exp(eval_loss)
+    print(f"\n==== Evaluation Results ====")
+    print(f"Eval loss: {eval_loss:.4f}")
+    print(f"Perplexity: {perplexity:.2f}")
 
     trainer.save_model("./checkpoints/final_dist_model_" + args.parallel_mode)
     tokenizer.save_pretrained("./checkpoints/final_dist_model_" + args.parallel_mode)
