@@ -51,7 +51,7 @@ def get_model(model_name, parallel_mode="none", local_rank=None):
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             quantization_config=bnb_config,
-            device_map=None,  # Explicitly set to None
+            device_map=None, 
             use_cache=False,
             torch_dtype=torch.float16
         ).to(f"cuda:{local_rank}")
@@ -218,11 +218,11 @@ def main():
     
     training_args = TrainingArguments(
         per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_eval_batch_size=16,
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
-        optim="adamw_bnb_8bit",
+        optim="Adam",
         save_total_limit=2,
         dataloader_num_workers=4,
         output_dir="./checkpoints/",
@@ -237,7 +237,7 @@ def main():
         remove_unused_columns=False,
         save_safetensors=False,
         ddp_find_unused_parameters=False,
-        deepspeed=ds_config_name if args.do_eval_only == None else None,
+        deepspeed=ds_config_name if args.do_eval_only is None else None,
         label_names=["labels"]
     )
     tokenized_datasets = dataset.map(
@@ -253,7 +253,26 @@ def main():
     if args.do_eval_only:
         MODEL_PATH = "./checkpoints/final_dist_model_" + args.parallel_mode
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map=None)
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_PATH,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16
+            ),
+            device_map=None,
+            torch_dtype=torch.float16,
+        )
+        model = prepare_model_for_kbit_training(model)
+        model = get_peft_model(model, LoraConfig(
+            r=8,
+            lora_alpha=16,
+            lora_dropout=0.1,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM
+        ))
+
         eval_args = TrainingArguments(
             output_dir="./eval_results_dist_" + args.parallel_mode,
             per_device_eval_batch_size=16,
