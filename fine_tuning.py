@@ -315,6 +315,7 @@ def main():
         eval_dataset=small_eval_dataset,
     )
     trainer.train()
+    trainer.evaluate()
 
     trainer.save_model("./checkpoints/final_dist_model_" + args.parallel_mode)
     tokenizer.save_pretrained("./checkpoints/final_dist_model_" + args.parallel_mode)
