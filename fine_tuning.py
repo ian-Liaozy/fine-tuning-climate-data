@@ -222,7 +222,7 @@ def main():
         gradient_accumulation_steps=4,
         fp16=True,
         bf16=False,
-        optim="Adam",
+        optim="adamw_bnb_8bit",
         save_total_limit=2,
         dataloader_num_workers=4,
         output_dir="./checkpoints/",
