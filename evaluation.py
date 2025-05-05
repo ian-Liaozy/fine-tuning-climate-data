@@ -29,7 +29,7 @@ def tokenize_function(examples):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=32,
+        max_length=64,
         return_tensors="pt",
     )
     tokenized_inputs["labels"] = tokenized_inputs["input_ids"].clone()
@@ -41,7 +41,7 @@ tokenized_test_dataset = tokenized_test_dataset.remove_columns(["text"])
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
-    per_device_eval_batch_size=1,  
+    per_device_eval_batch_size=4,  
     dataloader_num_workers=8,
     do_eval=True,
     report_to="none",
