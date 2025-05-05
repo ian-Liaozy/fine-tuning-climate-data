@@ -16,7 +16,8 @@ dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"}
 test_dataset = dataset["test"]
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to("cuda")
+print(torch.cuda.memory_summary())
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto").to("cuda")
 
 def tokenize_function(examples):
     tokenized_inputs = tokenizer(
