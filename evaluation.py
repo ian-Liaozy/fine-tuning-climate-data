@@ -33,6 +33,7 @@ eval_args = TrainingArguments(
     dataloader_num_workers=8,
     do_eval=True,
     report_to="none",
+    fp16=True,
 )
 
 trainer = Trainer(
