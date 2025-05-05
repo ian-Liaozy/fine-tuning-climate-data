@@ -2,6 +2,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingA
 from datasets import load_dataset
 import os
 import math
+import torch
+
+torch.cuda.empty_cache()
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -26,6 +30,8 @@ def tokenize_function(examples):
     return tokenized_inputs
 
 tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True, num_proc=1)
+tokenized_test_dataset = tokenized_test_dataset.remove_columns(["text"])
+
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
@@ -34,6 +40,7 @@ eval_args = TrainingArguments(
     do_eval=True,
     report_to="none",
     fp16=True,
+    eval_accumulation_steps=1,
 )
 
 trainer = Trainer(
@@ -42,7 +49,9 @@ trainer = Trainer(
     eval_dataset=tokenized_test_dataset,
 )
 
-metrics = trainer.evaluate()
+# metrics = trainer.evaluate()
+with torch.no_grad():
+    metrics = trainer.evaluate()
 
 perplexity = math.exp(metrics["eval_loss"])
 metrics["perplexity"] = perplexity
