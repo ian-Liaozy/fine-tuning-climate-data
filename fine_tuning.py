@@ -14,7 +14,7 @@ dataset = load_dataset("text", data_files={
 })
 
 
-model_name = "meta-llama/Llama-2-70b-hf"  # Pretrained model path
+model_name = "meta-llama/Llama-2-13b-hf"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
@@ -32,7 +32,7 @@ train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 small_eval_dataset = test_dataset.select(range(500))
 training_args = TrainingArguments(
-    per_device_train_batch_size=8,
+    per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
     gradient_accumulation_steps=4, 
     fp16=True,  # Mixed precision training
@@ -55,14 +55,13 @@ training_args = TrainingArguments(
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype="float16",
-    llm_int8_enable_fp32_cpu_offload=False,
 )
 
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     quantization_config=bnb_config,
-    device_map=None,
+    device_map="auto",
     use_cache=False,
     trust_remote_code=True
 )
