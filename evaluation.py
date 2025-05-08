@@ -4,8 +4,6 @@ import os
 import math
 import torch
 
-torch.cuda.empty_cache()
-
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -20,7 +18,7 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     device_map="auto",
-    # offload_folder="./offload", 
+    offload_folder="./offload", 
     torch_dtype=torch.float16,
     trust_remote_code=True,
 )
