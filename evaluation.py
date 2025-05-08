@@ -19,9 +19,10 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    # device_map="auto",
-    offload_folder="./offload", 
+    device_map="auto",
+    # offload_folder="./offload", 
     torch_dtype=torch.float16,
+    trust_remote_code=True,
 )
 
 def tokenize_function(examples):
@@ -41,7 +42,7 @@ tokenized_test_dataset = tokenized_test_dataset.remove_columns(["text"])
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
-    per_device_eval_batch_size=4,  
+    per_device_eval_batch_size=1,  
     dataloader_num_workers=8,
     do_eval=True,
     report_to="none",
