@@ -55,6 +55,7 @@ training_args = TrainingArguments(
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype="float16",
+    llm_int8_enable_fp32_cpu_offload=True,
 )
 
 
