@@ -1,10 +1,12 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 from peft import PeftModel, PeftConfig
 from datasets import load_dataset
+from transformers import BitsAndBytesConfig
 import torch
 import math
 import os
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 MODEL_NAME = "meta-llama/Llama-2-13b-hf" 
 ADAPTER_PATH = "./checkpoints/final_model"
@@ -12,17 +14,27 @@ ADAPTER_PATH = "./checkpoints/final_model"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
-model = AutoModelForCausalLM.from_pretrained(
+# model = AutoModelForCausalLM.from_pretrained(
+#     MODEL_NAME,
+#     torch_dtype=torch.float16,
+#     device_map=None,
+#     trust_remote_code=True,
+# )
+
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.float16,
+)
+
+base_model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    torch_dtype=torch.float16,
-    device_map=None,
+    quantization_config=bnb_config,
+    device_map="auto",
     trust_remote_code=True,
 )
 
-model = PeftModel.from_pretrained(model, ADAPTER_PATH)
-
-model = model.merge_and_unload() 
-
+model = PeftModel.from_pretrained(base_model, ADAPTER_PATH)
 
 DATASET_PATH = "/scratch/zl3057/processed_txt"
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
@@ -33,10 +45,9 @@ def tokenize_function(examples):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=32,
-        return_tensors="pt",
+        max_length=42,
     )
-    tokenized["labels"] = tokenized["input_ids"].clone()
+    tokenized["labels"] = tokenized["input_ids"].copy()
     return tokenized
 
 tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True)
