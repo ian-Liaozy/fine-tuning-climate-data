@@ -20,8 +20,8 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     device_map="auto",
-    offload_folder="./offload",  # or an absolute path like "/scratch/zl3057/offload"
-    torch_dtype=torch.float16,   # optional, helps reduce memory
+    offload_folder="./offload", 
+    torch_dtype=torch.float16,
 )
 
 def tokenize_function(examples):
@@ -46,14 +46,17 @@ eval_args = TrainingArguments(
     do_eval=True,
     report_to="none",
     eval_accumulation_steps=1,
-    device_map="auto",
 )
+
 
 trainer = Trainer(
     model=model,
     args=eval_args,
     eval_dataset=tokenized_test_dataset,
 )
+
+trainer._move_model_to_device = lambda model, device: model
+
 
 # metrics = trainer.evaluate()
 with torch.no_grad():
