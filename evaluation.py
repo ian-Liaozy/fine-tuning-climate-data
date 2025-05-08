@@ -54,6 +54,7 @@ trainer = Trainer(
     eval_dataset=tokenized_test_dataset,
 )
 
+trainer._move_model_to_device = lambda model, device: model
 
 # metrics = trainer.evaluate()
 with torch.no_grad():
