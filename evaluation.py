@@ -23,6 +23,8 @@ model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(model, ADAPTER_PATH)
 
 model = model.merge_and_unload() 
+model = model.to("cpu")
+
 
 DATASET_PATH = "/scratch/zl3057/processed_txt"
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
