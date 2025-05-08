@@ -36,7 +36,7 @@ def tokenize_function(examples):
         max_length=32,
         return_tensors="pt",
     )
-    tokenized["labels"] = tokenized["input_ids"].copy()
+    tokenized["labels"] = tokenized["input_ids"].clone()
     return tokenized
 
 tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True)
