@@ -47,14 +47,16 @@ eval_args = TrainingArguments(
     eval_accumulation_steps=1,
 )
 
+class SafeTrainer(Trainer):
+    def _move_model_to_device(self, model, device):
+        return model 
 
-trainer = Trainer(
+trainer = SafeTrainer(
     model=model,
     args=eval_args,
     eval_dataset=tokenized_test_dataset,
 )
 
-trainer._move_model_to_device = lambda model, device: model
 
 # metrics = trainer.evaluate()
 with torch.no_grad():
