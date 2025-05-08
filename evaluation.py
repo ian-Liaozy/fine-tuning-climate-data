@@ -45,7 +45,7 @@ def tokenize_function(examples):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=42,
+        max_length=64,
     )
     tokenized["labels"] = tokenized["input_ids"].copy()
     return tokenized
@@ -55,7 +55,7 @@ tokenized_test_dataset = tokenized_test_dataset.remove_columns(["text"])
 
 eval_args = TrainingArguments(
     output_dir="./eval_results",
-    per_device_eval_batch_size=1,
+    per_device_eval_batch_size=16,
     do_eval=True,
     report_to="none",
     fp16=True,
