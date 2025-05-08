@@ -46,6 +46,7 @@ eval_args = TrainingArguments(
     do_eval=True,
     report_to="none",
     eval_accumulation_steps=1,
+    device_map="auto",
 )
 
 trainer = Trainer(
