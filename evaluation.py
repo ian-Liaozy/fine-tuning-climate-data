@@ -23,7 +23,6 @@ model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(model, ADAPTER_PATH)
 
 model = model.merge_and_unload() 
-model = model.to("cpu")
 
 
 DATASET_PATH = "/scratch/zl3057/processed_txt"
@@ -35,7 +34,7 @@ def tokenize_function(examples):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=32,
+        max_length=16,
     )
     tokenized["labels"] = tokenized["input_ids"].copy()
     return tokenized
