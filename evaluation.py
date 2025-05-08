@@ -16,16 +16,13 @@ tokenizer.pad_token = tokenizer.eos_token
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float16,
-    device_map="auto",
+    device_map=None,  
     trust_remote_code=True,
 )
 
 model = PeftModel.from_pretrained(model, ADAPTER_PATH)
 
-model = model.to("cpu")
-torch.cuda.empty_cache()
 model = model.merge_and_unload() 
-model = model.to("cuda")
 
 DATASET_PATH = "/scratch/zl3057/processed_txt"
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
