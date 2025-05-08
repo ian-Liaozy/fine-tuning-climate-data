@@ -14,8 +14,8 @@ dataset = load_dataset("text", data_files={
 })
 
 
-model_name = "meta-llama/Llama-2-13b"  # Pretrained model path
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+model_name = "meta-llama/Llama-2-13b-hf"  # Pretrained model path
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
 
@@ -59,10 +59,12 @@ bnb_config = BitsAndBytesConfig(
 
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_name, 
-    quantization_config=bnb_config, 
+    model_name,
+    quantization_config=bnb_config,
     device_map="auto",
-    use_cache=False)
+    use_cache=False,
+    trust_remote_code=True
+)
 
 
 model = prepare_model_for_kbit_training(model)
