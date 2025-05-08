@@ -55,14 +55,14 @@ training_args = TrainingArguments(
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype="float16",
-    llm_int8_enable_fp32_cpu_offload=True,
+    llm_int8_enable_fp32_cpu_offload=False,
 )
 
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     quantization_config=bnb_config,
-    device_map="auto",
+    device_map=None,
     use_cache=False,
     trust_remote_code=True
 )
