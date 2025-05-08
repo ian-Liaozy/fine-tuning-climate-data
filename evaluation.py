@@ -5,7 +5,6 @@ import torch
 import math
 import os
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 MODEL_NAME = "meta-llama/Llama-2-13b-hf" 
 ADAPTER_PATH = "./checkpoints/final_model"
@@ -34,7 +33,8 @@ def tokenize_function(examples):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=16,
+        max_length=32,
+        return_tensors="pt",
     )
     tokenized["labels"] = tokenized["input_ids"].copy()
     return tokenized
@@ -47,6 +47,8 @@ eval_args = TrainingArguments(
     per_device_eval_batch_size=1,
     do_eval=True,
     report_to="none",
+    fp16=True,
+    eval_accumulation_steps=1,
     
 )
 
