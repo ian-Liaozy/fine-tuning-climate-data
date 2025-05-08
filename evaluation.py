@@ -19,7 +19,7 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    device_map="auto",
+    # device_map="auto",
     offload_folder="./offload", 
     torch_dtype=torch.float16,
 )
@@ -54,8 +54,6 @@ trainer = Trainer(
     args=eval_args,
     eval_dataset=tokenized_test_dataset,
 )
-
-trainer._move_model_to_device = lambda model, device: model
 
 
 # metrics = trainer.evaluate()
