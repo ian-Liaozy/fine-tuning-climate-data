@@ -7,14 +7,12 @@ import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# === Load Tokenizer ===
-MODEL_NAME = "meta-llama/Llama-2-13b-hf"  # Base model
-ADAPTER_PATH = "./checkpoints/final_model"  # Contains only LoRA weights
+MODEL_NAME = "meta-llama/Llama-2-13b-hf" 
+ADAPTER_PATH = "./checkpoints/final_model"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
-# === Load base model and merge LoRA ===
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float16,
@@ -23,9 +21,12 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 model = PeftModel.from_pretrained(model, ADAPTER_PATH)
-model = model.merge_and_unload()  # 💥 merge LoRA into full model
 
-# === Prepare dataset ===
+model = model.to("cpu")
+torch.cuda.empty_cache()
+model = model.merge_and_unload() 
+model = model.to("cuda")
+
 DATASET_PATH = "/scratch/zl3057/processed_txt"
 dataset = load_dataset("text", data_files={"test": f"{DATASET_PATH}/test/*.txt"})
 test_dataset = dataset["test"]
@@ -43,15 +44,14 @@ def tokenize_function(examples):
 tokenized_test_dataset = test_dataset.map(tokenize_function, batched=True)
 tokenized_test_dataset = tokenized_test_dataset.remove_columns(["text"])
 
-# === Training arguments ===
 eval_args = TrainingArguments(
     output_dir="./eval_results",
     per_device_eval_batch_size=1,
     do_eval=True,
     report_to="none",
+    
 )
 
-# === Trainer wrapper to prevent `.to()` ===
 from transformers import Trainer
 
 class SafeTrainer(Trainer):
@@ -64,7 +64,6 @@ trainer = SafeTrainer(
     eval_dataset=tokenized_test_dataset,
 )
 
-# === Evaluate ===
 with torch.no_grad():
     metrics = trainer.evaluate()
 
