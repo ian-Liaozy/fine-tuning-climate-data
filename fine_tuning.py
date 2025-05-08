@@ -14,7 +14,7 @@ dataset = load_dataset("text", data_files={
 })
 
 
-model_name = "meta-llama/Llama-2-13b-hf"  # Pretrained model path
+model_name = "meta-llama/Llama-2-70b-hf"  # Pretrained model path
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
