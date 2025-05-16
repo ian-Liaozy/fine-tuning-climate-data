@@ -69,16 +69,16 @@ model = AutoModelForCausalLM.from_pretrained(
 
 model = prepare_model_for_kbit_training(model)
 
-lora_config = LoraConfig(
-    r=8,  
-    lora_alpha=16,
-    lora_dropout=0.1,
-    bias="none",
-    task_type=TaskType.CAUSAL_LM,
-)
+# lora_config = LoraConfig(
+#     r=8,  
+#     lora_alpha=16,
+#     lora_dropout=0.1,
+#     bias="none",
+#     task_type=TaskType.CAUSAL_LM,
+# )
 
 
-model = get_peft_model(model, lora_config)
+# model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 
 print("Model prepared with LoRA")
