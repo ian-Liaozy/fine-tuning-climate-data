@@ -79,7 +79,7 @@ model = prepare_model_for_kbit_training(model)
 
 
 # model = get_peft_model(model, lora_config)
-model.print_trainable_parameters()
+# model.print_trainable_parameters()
 
 print("Model prepared with LoRA")
 
