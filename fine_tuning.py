@@ -32,7 +32,7 @@ train_dataset = tokenized_datasets["train"]
 test_dataset = tokenized_datasets["test"]
 small_eval_dataset = test_dataset.select(range(500))
 training_args = TrainingArguments(
-    per_device_train_batch_size=32,
+    per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
     gradient_accumulation_steps=4, 
     fp16=True,  # Mixed precision training
@@ -70,9 +70,9 @@ model = AutoModelForCausalLM.from_pretrained(
 model = prepare_model_for_kbit_training(model)
 
 lora_config = LoraConfig(
-    r=16,  
-    lora_alpha=32,
-    lora_dropout=0.05,
+    r=8,  
+    lora_alpha=16,
+    lora_dropout=0.1,
     bias="none",
     task_type=TaskType.CAUSAL_LM,
 )
